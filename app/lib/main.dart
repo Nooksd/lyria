@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -11,134 +13,230 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Audio Player',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: FirstPage(),
+      title: 'Music Streamer',
+      theme: ThemeData(primarySwatch: Colors.blue),
+      home: const MusicPlayer(),
     );
   }
 }
 
-class FirstPage extends StatelessWidget {
-  const FirstPage({super.key});
+class MusicPlayer extends StatefulWidget {
+  const MusicPlayer({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("First Page"),
-      ),
-      body: Center(
-        child: ElevatedButton(
-          onPressed: () {
-            // Ao pressionar o botão, navega para a segunda página
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => SecondPage()),
-            );
-          },
-          child: Text("Go to Audio Player"),
-        ),
-      ),
-    );
-  }
+  State<MusicPlayer> createState() => _MusicPlayerState();
 }
 
-class SecondPage extends StatefulWidget {
-  const SecondPage({super.key});
+class _MusicPlayerState extends State<MusicPlayer> {
+  final String _musicListUrl = 'http://192.168.1.68:9000/musics';
+  final String _streamBaseUrl = 'http://192.168.1.68:9000/stream/';
 
-  @override
-  SecondPageState createState() => SecondPageState();
-}
+  late List<Map<String, dynamic>> _musics;
+  final Map<String, AudioPlayer> _preloadedPlayers = {};
 
-class SecondPageState extends State<SecondPage> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  bool _isPlaying = false;
-  Duration _currentPosition = Duration.zero;
-  Duration _totalDuration = Duration.zero;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-
-    // Monitorar os eventos de áudio
-    _audioPlayer.onPlayerStateChanged.listen((state) {
-      if (state == PlayerState.completed) {
-        setState(() {
-          _isPlaying = false;
-        });
-      }
-    });
-
-    _audioPlayer.onPositionChanged.listen((position) {
-      setState(() {
-        _currentPosition = position;
-      });
-    });
-
-    _audioPlayer.onDurationChanged.listen((duration) {
-      setState(() {
-        _totalDuration = duration;
-      });
-    });
+    _fetchAndPreloadMusics();
   }
 
-  // Play/Pause logic
-  void _togglePlayPause() {
-    if (_isPlaying) {
-      _audioPlayer.pause();
-    } else {
-      // Usando a URL do servidor Go para tocar a música
-      _audioPlayer.play(UrlSource('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'));
-    }
+  Future<void> _fetchAndPreloadMusics() async {
+    try {
+      final response = await http.get(Uri.parse(_musicListUrl));
+      if (response.statusCode == 200) {
+        _musics = List<Map<String, dynamic>>.from(json.decode(response.body));
 
-    setState(() {
-      _isPlaying = !_isPlaying;
-    });
+        for (var music in _musics) {
+          final player = AudioPlayer();
+          await player.setUrl(_streamBaseUrl + music['audioPath']);
+          _preloadedPlayers[music['id']] = player;
+        }
+
+        setState(() {
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Erro ao obter músicas.');
+      }
+    } catch (e) {
+      debugPrint('Erro ao buscar músicas: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var player in _preloadedPlayers.values) {
+      player.dispose();
+    }
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Music Streamer')),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Audio Player"),
+      appBar: AppBar(title: const Text('Music Streamer')),
+      body: ListView.builder(
+        itemCount: _musics.length,
+        itemBuilder: (context, index) {
+          final music = _musics[index];
+          return ListTile(
+            title: Text(music['name']),
+            subtitle: Text(music['artistName']),
+            trailing: const Icon(Icons.arrow_forward),
+            onTap: () {
+              final player = _preloadedPlayers[music['id']];
+              if (player != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => MusicDetailsPage(
+                      music: music,
+                      player: player,
+                    ),
+                  ),
+                );
+              }
+            },
+          );
+        },
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+    );
+  }
+}
+
+class MusicDetailsPage extends StatefulWidget {
+  final Map<String, dynamic> music;
+  final AudioPlayer player;
+
+  const MusicDetailsPage({
+    required this.music,
+    required this.player,
+    super.key,
+  });
+
+  @override
+  State<MusicDetailsPage> createState() => _MusicDetailsPageState();
+}
+
+class _MusicDetailsPageState extends State<MusicDetailsPage> {
+  late AudioPlayer _player;
+  late Stream<Duration> _positionStream;
+  late Stream<Duration?> _durationStream;
+
+  Duration _position = Duration.zero;
+  Duration? _duration;
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _player = widget.player;
+
+    _positionStream = _player.positionStream;
+    _durationStream = _player.durationStream;
+
+    // Listener para posição atual da música
+    _positionStream.listen((position) {
+      setState(() {
+        _position = position;
+      });
+    });
+
+    // Listener para duração da música
+    _durationStream.listen((duration) {
+      setState(() {
+        _duration = duration;
+      });
+    });
+
+    _playMusic();
+  }
+
+  Future<void> _playMusic() async {
+    await _player.play();
+    setState(() {
+      _isPlaying = true;
+    });
+  }
+
+  Future<void> _pauseMusic() async {
+    await _player.pause();
+    setState(() {
+      _isPlaying = false;
+    });
+  }
+
+  void _seekTo(double value) {
+    final newPosition = Duration(seconds: value.toInt());
+    _player.seek(newPosition);
+  }
+
+  @override
+  void dispose() {
+    _player.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String positionText = _formatDuration(_position);
+    final String durationText =
+        _duration != null ? _formatDuration(_duration!) : "0:00";
+
+    return Scaffold(
+      appBar: AppBar(title: Text(widget.music['name'])),
+      body: Center(
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Barra de progresso e tempo
+            Text(
+              widget.music['name'],
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            Text(widget.music['artistName'], style: const TextStyle(fontSize: 18)),
+            const SizedBox(height: 20),
             Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text("${_currentPosition.inMinutes}:${(_currentPosition.inSeconds % 60).toString().padLeft(2, '0')} / "),
-                Slider(
-                  value: _currentPosition.inSeconds.toDouble(),
-                  min: 0.0,
-                  max: _totalDuration.inSeconds.toDouble(),
-                  onChanged: (value) {
-                    setState(() {
-                      _audioPlayer.seek(Duration(seconds: value.toInt()));
-                    });
-                  },
-                ),
-                Text("${_totalDuration.inMinutes}:${(_totalDuration.inSeconds % 60).toString().padLeft(2, '0')}"),
+                Text(positionText, style: const TextStyle(fontSize: 16)),
+                if (_duration != null)
+                  Slider(
+                    value: _position.inSeconds.toDouble(),
+                    min: 0.0,
+                    max: _duration!.inSeconds.toDouble(),
+                    onChanged: (value) => _seekTo(value),
+                  ),
+                Text(durationText, style: const TextStyle(fontSize: 16)),
               ],
             ),
-            SizedBox(height: 20),
-            // Botão de Play/Pause
-            ElevatedButton(
-              onPressed: _togglePlayPause,
-              child: Icon(
+            IconButton(
+              onPressed: _isPlaying ? _pauseMusic : _playMusic,
+              icon: Icon(
                 _isPlaying ? Icons.pause : Icons.play_arrow,
-                size: 30,
+                size: 50,
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds % 60;
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
   }
 }
