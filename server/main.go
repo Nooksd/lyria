@@ -18,7 +18,7 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 
-	routes.TesteRoutes(router)
+	routes.MusicRoutes(router)
 
 	routes.ImageRoutes(router)
 	routes.AuthRoutes(router)

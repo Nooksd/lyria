@@ -42,24 +42,9 @@ func VerifyPassword(providedPassword string, storedHash string) error {
 
 func CreateUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// userClaims, exists := c.Get("user")
-		// if !exists {
-		// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
-		// 	return
-		// }
-
-		// claims, ok := userClaims.(jwt.MapClaims)
-		// if !ok {
-		// 	c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
-		// 	return
-		// }
-
-		// userType := claims["UserType"].(string)
-
-		// if userType != "ADMIN" {
-		// 	c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário sem permissão", "tipo": userType})
-		// 	return
-		// }
+		if ok, _, _ := helper.CheckAdminOrUidPermission(c, ""); !ok {
+			return
+		}
 
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
@@ -68,12 +53,6 @@ func CreateUser() gin.HandlerFunc {
 
 		if err := c.BindJSON(&user); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "erro ao ler dados"})
-			return
-		}
-
-		validationErrors := validate.Struct(user)
-		if validationErrors != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": validationErrors.Error()})
 			return
 		}
 
@@ -94,6 +73,14 @@ func CreateUser() gin.HandlerFunc {
 		user.AvatarUrl = "http://192.168.1.68:9000/avatar/get/" + user.Uid
 		user.ID = primitive.NewObjectID()
 		user.Uid = user.ID.Hex()
+		user.CreatedAt = time.Now()
+		user.UpdatedAt = user.CreatedAt
+
+		validationErrors := validate.Struct(user)
+		if validationErrors != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErrors.Error()})
+			return
+		}
 
 		resultInsertionNumber, insertErr := userCollection.InsertOne(ctx, user)
 		if insertErr != nil {
@@ -189,24 +176,9 @@ func RefreshToken() gin.HandlerFunc {
 
 func UpdateOneUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userClaims, exists := c.Get("user")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
-			return
-		}
-
-		claims, ok := userClaims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
-			return
-		}
-
-		userType := claims["UserType"].(string)
-		userId := claims["Uid"].(string)
 		targetUserId := c.Param("userId")
 
-		if userType != "ADMIN" && userId != targetUserId {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Você não tem permissão para atualizar este usuário"})
+		if ok, _, _ := helper.CheckAdminOrUidPermission(c, targetUserId); !ok {
 			return
 		}
 
