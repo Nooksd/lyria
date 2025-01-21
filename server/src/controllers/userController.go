@@ -70,7 +70,7 @@ func CreateUser() gin.HandlerFunc {
 
 		password := HashPassword(user.Password)
 		user.Password = password
-		user.AvatarUrl = "http://192.168.1.68:9000/avatar/get/" + user.Uid
+		user.AvatarUrl = "http://192.168.1.68:9000/avatar/" + user.Uid
 		user.ID = primitive.NewObjectID()
 		user.Uid = user.ID.Hex()
 		user.CreatedAt = time.Now()
@@ -186,6 +186,7 @@ func UpdateOneUser() gin.HandlerFunc {
 		defer cancel()
 
 		var userUpdates bson.M
+
 		if err := c.BindJSON(&userUpdates); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Erro ao ler os dados de atualização"})
 			return

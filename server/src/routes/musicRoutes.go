@@ -18,9 +18,10 @@ func MusicRoutes(router *gin.Engine) {
 	router.DELETE("/album/delete/:albumId", controller.DeleteAlbum())
 
 	router.POST("/music/create", controller.CreateMusic())
-	router.GET("/musics", controller.GetAllMusics())
 	router.PUT("/music/update/:musicId", controller.UpdateMusic())
 	router.DELETE("/music/delete/:musicId", controller.DeleteMusic())
 
-	router.GET("/stream/:artistName/:albumName/:musicName", controller.StreamMusic())
+	router.GET("/stream/:musicId", controller.StreamMusic())
+
+	router.GET("/search", controller.GeneralSearch())
 }

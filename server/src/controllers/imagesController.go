@@ -5,32 +5,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	helper "server/src/helpers"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 func UploadAvatar() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		targetUserId := c.Param("userId")
 
-		userClaims, exists := c.Get("user")
-		if !exists {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
-			return
-		}
-
-		claims, ok := userClaims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
-			return
-		}
-
-		userType := claims["UserType"].(string)
-		userId := claims["Uid"].(string)
-
-		if userType != "ADMIN" && userId != targetUserId {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Você não tem permissão para atualizar este usuário"})
+		if ok, _, _ := helper.CheckAdminOrUidPermission(c, targetUserId); !ok {
 			return
 		}
 
@@ -49,7 +33,7 @@ func UploadAvatar() gin.HandlerFunc {
 
 		filename := fmt.Sprintf("%s.png", targetUserId)
 
-		filePath := filepath.Join("uploads", "avatar", filename)
+		filePath := filepath.Join("uploads", "image", "avatar", filename)
 
 		err = os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
 		if err != nil {
@@ -70,7 +54,7 @@ func UploadAvatar() gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{"message": "Avatar enviado com sucesso!", "url": "http://192.168.1.68:9000/avatar/get/" + filename})
+		c.JSON(http.StatusOK, gin.H{"message": "Avatar enviado com sucesso!"})
 	}
 }
 
@@ -79,10 +63,10 @@ func GetAvatar() gin.HandlerFunc {
 		userId := c.Param("userId")
 		filename := fmt.Sprintf("%s.png", userId)
 
-		filePath := filepath.Join("uploads", "avatar", filename)
+		filePath := filepath.Join("uploads", "image", "avatar", filename)
 
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			filePath := filepath.Join("uploads", "avatar", "default.png")
+			filePath := filepath.Join("uploads", "default", "avatar.png")
 
 			c.File(filePath)
 			return

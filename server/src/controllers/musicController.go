@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	database "server/src/db"
+	helper "server/src/helpers"
 	model "server/src/models"
 	"strconv"
 	"strings"
@@ -22,50 +23,30 @@ var musicCollection *mongo.Collection = database.OpenCollection(database.Client,
 
 func CreateMusic() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var request struct {
-			Url        string   `json:"url" binding:"required"`
-			Name       string   `json:"name" binding:"required"`
-			ArtistID   string   `json:"artistId" binding:"required"`
-			ArtistName string   `json:"artistName" binding:"required"`
-			AlbumID    string   `json:"albumId" binding:"required"`
-			AlbumName  string   `json:"albumName" binding:"required"`
-			Genre      []string `json:"genre"`
+		if ok, _, _ := helper.CheckAdminOrUidPermission(c, ""); !ok {
+			return
 		}
+		var music model.Music
 
 		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 		defer cancel()
 
-		if err := c.ShouldBindJSON(&request); err != nil {
+		if err := c.ShouldBindJSON(&music); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Campos necessários em falta", "details": err.Error()})
 			return
 		}
 
-		uploadDir := "./uploads/music/" + request.ArtistName + "/" + request.AlbumName
-		if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "A pasta do álbum não existe"})
-			return
-		}
+		music.ID = primitive.NewObjectID()
 
-		music := model.Music{
-			ID:         primitive.NewObjectID(),
-			Name:       request.Name,
-			ArtistID:   primitive.NilObjectID,
-			ArtistName: request.ArtistName,
-			AlbumID:    primitive.NilObjectID,
-			AlbumName:  request.AlbumName,
-			Genre:      strings.Join(request.Genre, ", "),
-			AudioPath:  "",
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
-		}
-
-		downloadResult := downloadMusic(request.Url, request.Name, uploadDir)
+		downloadResult := downloadMusic(music.Url, music.ID.Hex())
 		if !downloadResult {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao baixar a música"})
 			return
 		}
 
-		music.AudioPath = request.ArtistName + "/" + request.AlbumName + "/" + request.Name
+		music.Url = ""
+		music.CreatedAt = time.Now()
+		music.UpdatedAt = music.CreatedAt
 
 		_, err := musicCollection.InsertOne(ctx, music)
 		if err != nil {
@@ -79,6 +60,10 @@ func CreateMusic() gin.HandlerFunc {
 
 func UpdateMusic() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if ok, _, _ := helper.CheckAdminOrUidPermission(c, ""); !ok {
+			return
+		}
+
 		musicId := c.Param("musicId")
 
 		id, err := primitive.ObjectIDFromHex(musicId)
@@ -115,6 +100,10 @@ func UpdateMusic() gin.HandlerFunc {
 
 func DeleteMusic() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if ok, _, _ := helper.CheckAdminOrUidPermission(c, ""); !ok {
+			return
+		}
+
 		musicId := c.Param("musicId")
 
 		id, err := primitive.ObjectIDFromHex(musicId)
@@ -134,7 +123,7 @@ func DeleteMusic() gin.HandlerFunc {
 			return
 		}
 
-		err = os.Remove("./uploads/music/" + music.AudioPath)
+		err = os.Remove("./uploads/music/" + music.ID.Hex() + ".m4a")
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar o arquivo"})
 			return
@@ -150,35 +139,11 @@ func DeleteMusic() gin.HandlerFunc {
 	}
 }
 
-func GetAllMusics() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		var musics []model.Music
-		cursor, err := musicCollection.Find(ctx, bson.M{})
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
-			return
-		}
-		defer cursor.Close(ctx)
-
-		if err = cursor.All(ctx, &musics); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao decodificar músicas"})
-			return
-		}
-
-		c.JSON(http.StatusOK, musics)
-	}
-}
-
 func StreamMusic() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		artistName := c.Param("artistName")
-		albumName := c.Param("albumName")
-		musicName := c.Param("musicName")
+		musicId := c.Param("musicId")
 
-		filePath := "uploads/music/" + artistName + "/" + albumName + "/" + musicName + ".m4a"
+		filePath := "uploads/music/" + musicId + ".m4a"
 
 		file, err := os.Open(filePath)
 		if err != nil {
@@ -225,17 +190,10 @@ func StreamMusic() gin.HandlerFunc {
 	}
 }
 
-func downloadMusic(url string, name string, uploadDir string) bool {
-	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-		err = os.MkdirAll(uploadDir, os.ModePerm)
-		if err != nil {
-			return false
-		}
-	}
+func downloadMusic(url string, id string) bool {
+	outputPath := fmt.Sprintf("./uploads/music/%s.%%(ext)s", id)
 
-	outputPath := fmt.Sprintf("%s/%s.%%(ext)s", uploadDir, name)
-
-	cmd := exec.Command("yt-dlp", "-f", "bestaudio[ext=m4a]", "-o", outputPath, url)
+	cmd := exec.Command("./cmd/yt-dlp.exe", "-f", "bestaudio[ext=m4a]", "-o", outputPath, url)
 
 	err := cmd.Run()
 

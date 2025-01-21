@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"server/src/routes"
+	websocketmanager "server/src/websocket"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,15 +19,13 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Logger())
 
-	routes.MusicRoutes(router)
+	go websocketmanager.ManagerInstance.Run()
 
 	routes.ImageRoutes(router)
 	routes.AuthRoutes(router)
 	routes.UserRoutes(router)
-
-	// routes.ArtistRoutes(router)
-	// routes.AlbumRoutes(router)
-	// routes.MusicRoutes(router)
+	routes.MusicRoutes(router)
+	routes.MusicJamRoutes(router)
 
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Erro ao iniciar o servidor: %v", err)
