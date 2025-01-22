@@ -11,7 +11,7 @@ func UserRoutes(router *gin.Engine) {
 	router.Use(middleware.Authenticate())
 	router.POST("/users/create", controller.CreateUser())
 	router.GET("/users", controller.SearchUsers())
-	router.POST("/avatar/upload/:userId", controller.UploadAvatar())
+	router.POST("/avatar/upload", controller.UploadAvatar())
 	router.GET("/users/:userId", controller.GetOneUser())
 	router.PUT("/users/update/:userId", controller.UpdateOneUser())
 

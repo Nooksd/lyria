@@ -5,73 +5,101 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	helper "server/src/helpers"
 
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func UploadAvatar() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		targetUserId := c.Param("userId")
-
-		if ok, _, _ := helper.CheckAdminOrUidPermission(c, targetUserId); !ok {
+		userClaims, exists := c.Get("user")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
 			return
 		}
 
-		err := c.Request.ParseMultipartForm(10 << 20)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Erro ao processar o arquivo"})
+		claims, ok := userClaims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
 			return
 		}
 
-		file, _, err := c.Request.FormFile("avatar")
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Nenhum arquivo enviado"})
-			return
-		}
-		defer file.Close()
+		userId := claims["UserId"].(string)
+		handleFileUpload(c, userId, "avatar", "avatar", "png")
+	}
+}
 
-		filename := fmt.Sprintf("%s.png", targetUserId)
-
-		filePath := filepath.Join("uploads", "image", "avatar", filename)
-
-		err = os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar diretório"})
+func UploadCover() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id := c.Param("id")
+		if id == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID não fornecido"})
 			return
 		}
 
-		dst, err := os.Create(filePath)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar o arquivo"})
-			return
-		}
-		defer dst.Close()
-
-		_, err = dst.ReadFrom(file)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao escrever o arquivo"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"message": "Avatar enviado com sucesso!"})
+		handleFileUpload(c, id, "cover", "cover", "png")
 	}
 }
 
 func GetAvatar() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userId := c.Param("userId")
-		filename := fmt.Sprintf("%s.png", userId)
-
-		filePath := filepath.Join("uploads", "image", "avatar", filename)
-
-		if _, err := os.Stat(filePath); os.IsNotExist(err) {
-			filePath := filepath.Join("uploads", "default", "avatar.png")
-
-			c.File(filePath)
-			return
-		}
-
-		c.File(filePath)
+		getImage(c, "avatar", "default.png")
 	}
+}
+
+func GetCover() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		getImage(c, "cover", "default.png")
+	}
+}
+
+func handleFileUpload(c *gin.Context, id string, subDir string, fieldName string, fileExtension string) {
+	err := c.Request.ParseMultipartForm(10 << 20)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Erro ao processar o arquivo"})
+		return
+	}
+
+	file, _, err := c.Request.FormFile(fieldName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Nenhum arquivo enviado"})
+		return
+	}
+	defer file.Close()
+
+	filename := fmt.Sprintf("%s.%s", id, fileExtension)
+	filePath := filepath.Join("uploads", "image", subDir, filename)
+
+	err = os.MkdirAll(filepath.Dir(filePath), os.ModePerm)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao criar diretório"})
+		return
+	}
+
+	dst, err := os.Create(filePath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar o arquivo"})
+		return
+	}
+	defer dst.Close()
+
+	_, err = dst.ReadFrom(file)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao escrever o arquivo"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Arquivo enviado com sucesso!", "filePath": filePath})
+}
+
+func getImage(c *gin.Context, subDir string, defaultFile string) {
+	id := c.Param("id")
+	filename := fmt.Sprintf("%s.png", id)
+	filePath := filepath.Join("uploads", "image", subDir, filename)
+
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		filePath = filepath.Join("uploads", "image", subDir, defaultFile)
+	}
+
+	c.File(filePath)
 }
