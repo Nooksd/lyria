@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lottie/lottie.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_states.dart';
-import 'package:lyria/main.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
@@ -13,9 +13,9 @@ class SplashScreen extends StatelessWidget {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) {
         if (state is Authenticated) {
-          navigatorKey.currentState?.pushReplacementNamed('/auth/navigator');
+          context.go('/auth/ui/home');
         } else if (state is Unauthenticated) {
-          navigatorKey.currentState?.pushReplacementNamed('/auth/decide');
+          context.go('/auth/decide');
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(state.error)),
@@ -44,7 +44,7 @@ class SplashScreen extends StatelessWidget {
                   bottom: 50,
                   child: SizedBox(
                     width: 65,
-                    height: 35, 
+                    height: 35,
                     child: Image.asset(
                       'assets/images/logo.png',
                       fit: BoxFit.contain,

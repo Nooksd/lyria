@@ -26,10 +26,10 @@ class AppUser {
     return AppUser(
       uid: map['id'] as String,
       name: map['name'] as String,
-      userType: map['userType'],
+      userType: map['userType'] ?? "USER",
       avatarUrl: map['avatarUrl'],
       email: map['email'],
-      favorites: map['favorites'],
+      favorites: map['favorites'] ?? [],
     );
   }
 }

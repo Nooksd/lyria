@@ -1,8 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lyria/app/modules/auth/domain/entities/app_user.dart';
 import 'package:lyria/app/modules/auth/domain/repos/auth_repo.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_states.dart';
-import 'package:lyria/main.dart';
 
 class AuthCubit extends Cubit<AuthState> {
   final AuthRepo authRepo;
@@ -41,11 +42,12 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
-  Future<void> logout() async {
-    await authRepo.logout();
+  logout(BuildContext context) {
+    authRepo.logout();
     _currentUser = null;
 
     emit(Unauthenticated());
-     navigatorKey.currentState?.pushReplacementNamed('/');
+
+    context.go('/auth/decide');
   }
 }

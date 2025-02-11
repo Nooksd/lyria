@@ -21,6 +21,12 @@ class _LoginFormState extends State<LoginForm> {
 
     final authCubit = getIt<AuthCubit>();
 
+    if (password.length < 5) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text("Senha muito curta")));
+      return;
+    }
+
     if (email.isNotEmpty && password.isNotEmpty) {
       authCubit.login(email, password, keedLoggedIn);
     } else {

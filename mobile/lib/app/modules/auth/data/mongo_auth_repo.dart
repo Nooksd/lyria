@@ -12,7 +12,8 @@ class MongoAuthRepo implements AuthRepo {
   MongoAuthRepo({required this.http, required this.storage});
 
   @override
-  Future<AppUser?> login(String email, String password, bool keepLoggedIn) async {
+  Future<AppUser?> login(
+      String email, String password, bool keepLoggedIn) async {
     try {
       final body = {
         'email': email,
@@ -34,16 +35,9 @@ class MongoAuthRepo implements AuthRepo {
         await storage.set('refreshToken', newRefreshToken);
         await storage.set('user', jsonEncode(userData));
 
-        return AppUser.fromMap({
-          'name': userData['name'],
-          'email': userData['email'],
-          'avatarUrl': userData['avatarUrl'],
-          'userType': userData['userType'],
-          'favorites': userData['favorites'],
-        });
+        return AppUser.fromMap(userData);
       }
       return null;
-
     } catch (e) {
       throw Exception('Failed to login: $e');
     }
@@ -57,14 +51,8 @@ class MongoAuthRepo implements AuthRepo {
 
       final userData = user is String ? jsonDecode(user) : null;
 
-      if (user != null && token != null) {
-        return AppUser.fromMap({
-          'name': userData['name'],
-          'email': userData['email'],
-          'avatarUrl': userData['avatarUrl'],
-          'userType': userData['userType'],
-          'favorites': userData['favorites'],
-        });
+      if (userData != null && token != null) {
+        return AppUser.fromMap(userData);
       }
       return null;
     } catch (e) {
