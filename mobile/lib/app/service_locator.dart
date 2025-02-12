@@ -3,7 +3,7 @@ import 'package:lyria/app/core/services/http/dio_client.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/core/services/storege/shared_preferences_client.dart';
-import 'package:lyria/app/modules/auth/data/mongo_auth_repo.dart';
+import 'package:lyria/app/modules/auth/data/api_auth_repo.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 
 final getIt = GetIt.instance;
@@ -16,13 +16,13 @@ void setupLocator() {
   );
 
   // Repositórios
-  getIt.registerLazySingleton(() => MongoAuthRepo(
+  getIt.registerLazySingleton(() => ApiAuthRepo(
         http: getIt<MyHttpClient>(),
         storage: getIt<MyLocalStorage>(),
       ));
 
   // Cubits
   getIt.registerSingleton<AuthCubit>(
-    AuthCubit(authRepo: getIt<MongoAuthRepo>()),
+    AuthCubit(authRepo: getIt<ApiAuthRepo>()),
   );
 }

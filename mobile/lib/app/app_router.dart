@@ -47,7 +47,7 @@ class AppRouter {
           ),
           GoRoute(
             path: '/auth/ui/explorer',
-            pageBuilder: (context, state) => const NoTransitionPage(
+            pageBuilder: (context, state) => NoTransitionPage(
               child: ExplorerPage(),
             ),
           ),

@@ -36,10 +36,28 @@ func GeneralSearch() gin.HandlerFunc {
 			return
 		}
 		for i := range artists {
-			artists[i]["category"] = "artist"
+			results = append(results, bson.M{
+				"name":        artists[i]["name"],
+				"type":        "artist",
+				"id":          artists[i]["_id"],
+				"description": "Artista",
+			})
 		}
 
-		albumCursor, err := albumCollection.Find(ctx, searchRegex)
+		albumPipeline := []bson.M{
+			{"$match": searchRegex},
+			{
+				"$lookup": bson.M{
+					"from":         "artists",
+					"localField":   "artistId",
+					"foreignField": "_id",
+					"as":           "artist",
+				},
+			},
+			{"$unwind": "$artist"},
+		}
+
+		albumCursor, err := albumCollection.Aggregate(ctx, albumPipeline)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar álbuns"})
 			return
@@ -50,10 +68,37 @@ func GeneralSearch() gin.HandlerFunc {
 			return
 		}
 		for i := range albums {
-			albums[i]["category"] = "album"
+			results = append(results, bson.M{
+				"name":        albums[i]["name"],
+				"type":        "album",
+				"id":          albums[i]["_id"],
+				"description": "Álbum · " + albums[i]["artist"].(bson.M)["name"].(string),
+			})
 		}
 
-		musicCursor, err := musicCollection.Find(ctx, searchRegex)
+		musicPipeline := []bson.M{
+			{"$match": searchRegex},
+			{
+				"$lookup": bson.M{
+					"from":         "albums",
+					"localField":   "albumId",
+					"foreignField": "_id",
+					"as":           "album",
+				},
+			},
+			{"$unwind": "$album"},
+			{
+				"$lookup": bson.M{
+					"from":         "artists",
+					"localField":   "album.artistId",
+					"foreignField": "_id",
+					"as":           "artist",
+				},
+			},
+			{"$unwind": "$artist"},
+		}
+
+		musicCursor, err := musicCollection.Aggregate(ctx, musicPipeline)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
 			return
@@ -64,12 +109,13 @@ func GeneralSearch() gin.HandlerFunc {
 			return
 		}
 		for i := range musics {
-			musics[i]["category"] = "music"
+			results = append(results, bson.M{
+				"name":        musics[i]["name"],
+				"type":        "music",
+				"id":          musics[i]["_id"],
+				"description": "Música · " + musics[i]["artist"].(bson.M)["name"].(string),
+			})
 		}
-
-		results = append(results, artists...)
-		results = append(results, albums...)
-		results = append(results, musics...)
 
 		sort.Slice(results, func(i, j int) bool {
 			return results[i]["name"].(string) < results[j]["name"].(string)

@@ -15,9 +15,12 @@ func Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token não fornecido"})
-			c.Abort()
-			return
+			authHeader, _ = c.Cookie("accessToken")
+			if authHeader == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token não fornecido"})
+				c.Abort()
+				return
+			}
 		}
 
 		token, err := jwt.Parse(authHeader, func(token *jwt.Token) (interface{}, error) {

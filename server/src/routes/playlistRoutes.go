@@ -6,11 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func PlaylistRoutes(router *gin.Engine) {
-	router.POST("/playlist/create", controller.CreatePlaylist())
-	router.GET("/playlist/:playlistId", controller.GetPlaylist())
-
-	router.PUT("/playlist/update/:playlistId", controller.UpdatePlaylist())
-	router.DELETE("/playlist/delete/:playlistId", controller.DeletePlaylist())
+func PlaylistRoutes(router *gin.RouterGroup) {
+	playlist := router.Group("/playlist")
+	{
+		playlist.POST("/create", controller.CreatePlaylist())
+		playlist.GET("/:playlistId", controller.GetPlaylist())
+		playlist.PUT("/update/:playlistId", controller.UpdatePlaylist())
+		playlist.DELETE("/delete/:playlistId", controller.DeletePlaylist())
+	}
 
 }

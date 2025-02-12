@@ -6,20 +6,28 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func MusicRoutes(router *gin.Engine) {
-	router.POST("/artist/create", controller.CreateArtist())
-	router.GET("/artist/:artistId", controller.GetArtist())
-	router.PUT("/artist/update/:artistId", controller.UpdateArtist())
-	router.DELETE("/artist/delete/:artistId", controller.DeleteArtist())
+func MusicRoutes(router *gin.RouterGroup) {
+	artist := router.Group("/artist")
+	album := router.Group("/album")
+	music := router.Group("/music")
 
-	router.POST("/album/create", controller.CreateAlbum())
-	router.GET("/album/:albumId", controller.GetAlbum())
-	router.PUT("/album/update/:albumId", controller.UpdateAlbum())
-	router.DELETE("/album/delete/:albumId", controller.DeleteAlbum())
+	{
+		artist.POST("/create", controller.CreateArtist())
+		artist.GET("/:artistId", controller.GetArtist())
+		artist.PUT("/update/:artistId", controller.UpdateArtist())
+		artist.DELETE("/delete/:artistId", controller.DeleteArtist())
+	}
+	{
+		album.POST("/create", controller.CreateAlbum())
+		album.GET("/:albumId", controller.GetAlbum())
+		album.PUT("/update/:albumId", controller.UpdateAlbum())
+		album.DELETE("/delete/:albumId", controller.DeleteAlbum())
+	}
+	{
 
-	router.POST("/music/create", controller.CreateMusic())
-	router.PUT("/music/update/:musicId", controller.UpdateMusic())
-	router.DELETE("/music/delete/:musicId", controller.DeleteMusic())
+		music.PUT("/update/:musicId", controller.UpdateMusic())
+		music.DELETE("/delete/:musicId", controller.DeleteMusic())
+	}
 
 	router.GET("/stream/:musicId", controller.StreamMusic())
 

@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"time"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
-	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -30,14 +28,6 @@ func HashPassword(password string) string {
 		return ""
 	}
 	return string(hashedPassword)
-}
-
-func VerifyPassword(providedPassword string, storedHash string) error {
-	err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(providedPassword))
-	if err != nil {
-		return fmt.Errorf("email ou senha incorretos")
-	}
-	return nil
 }
 
 func CreateUser() gin.HandlerFunc {
@@ -91,86 +81,6 @@ func CreateUser() gin.HandlerFunc {
 
 		c.JSON(http.StatusCreated, resultInsertionNumber)
 
-	}
-}
-
-func LoginUser() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
-		defer cancel()
-
-		var user model.User
-		var foundUser model.User
-
-		if err := c.BindJSON(&user); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "erro ao ler dados"})
-			return
-		}
-		if (user.Email == "") || (user.Password == "") {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "email e senha são obrigatórios"})
-			return
-		}
-
-		err := userCollection.FindOne(ctx, bson.M{"email": user.Email}).Decode(&foundUser)
-		if err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "email e/ou senha incorretos"})
-			return
-		}
-
-		if err := VerifyPassword(user.Password, foundUser.Password); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "email e/ou senha incorretos"})
-			return
-		}
-
-		accessToken, refreshToken, _ := helper.GenerateTokens(foundUser.Email, foundUser.Name, foundUser.AvatarUrl, foundUser.Uid, foundUser.UserType, true)
-
-		c.JSON(http.StatusOK, gin.H{
-			"accessToken":  accessToken,
-			"refreshToken": refreshToken,
-			"user":         foundUser,
-			"type":         foundUser.UserType,
-		})
-	}
-}
-
-func RefreshToken() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		refreshToken := c.GetHeader("Token")
-		if refreshToken == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Token não fornecido"})
-			return
-		}
-
-		token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
-			return []byte(helper.SECRET_KEY), nil
-		})
-
-		if err != nil || !token.Valid {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Token inválido"})
-			return
-		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
-			return
-		}
-
-		email := claims["Email"].(string)
-		name := claims["Name"].(string)
-		avatarUrl := claims["AvatarUrl"].(string)
-		userType := claims["UserType"].(string)
-		userId := claims["Uid"].(string)
-
-		newAccessToken, _, err := helper.GenerateTokens(email, name, avatarUrl, userId, userType, false)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar novo token"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"accessToken": newAccessToken,
-		})
 	}
 }
 

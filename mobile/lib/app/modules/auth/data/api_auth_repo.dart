@@ -5,11 +5,11 @@ import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/modules/auth/domain/entities/app_user.dart';
 import 'package:lyria/app/modules/auth/domain/repos/auth_repo.dart';
 
-class MongoAuthRepo implements AuthRepo {
+class ApiAuthRepo implements AuthRepo {
   MyHttpClient http;
   MyLocalStorage storage;
 
-  MongoAuthRepo({required this.http, required this.storage});
+  ApiAuthRepo({required this.http, required this.storage});
 
   @override
   Future<AppUser?> login(

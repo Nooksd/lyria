@@ -44,7 +44,7 @@ func CreateMusic() gin.HandlerFunc {
 			return
 		}
 
-		music.Url = ""
+		music.Url = os.Getenv("SERVER_URL") + "/stream/" + music.ID.Hex()
 		music.CreatedAt = time.Now()
 		music.UpdatedAt = music.CreatedAt
 

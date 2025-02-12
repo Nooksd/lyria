@@ -16,6 +16,7 @@ class CustomContainer extends StatelessWidget {
     return Container(
       width: width,
       height: height,
+      clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [

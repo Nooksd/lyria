@@ -32,83 +32,95 @@ class NavigatorPageState extends State<NavigatorPage> {
     final Color baseColor = Theme.of(context).colorScheme.primaryContainer;
 
     return Scaffold(
+      extendBody: true,
       body: widget.child,
-      bottomNavigationBar: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    baseColor.withOpacity(1),
-                    baseColor.withOpacity(0.4),
-                    baseColor.withOpacity(0),
-                  ],
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
+      bottomNavigationBar: SizedBox(
+        height: 120,
+        child: Stack(
+          children: [
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: 110,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      baseColor.withOpacity(1),
+                      baseColor.withOpacity(0.97),
+                      baseColor.withOpacity(0.8),
+                      baseColor.withOpacity(0.4),
+                      baseColor.withOpacity(0),
+                    ],
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                  ),
                 ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: 30, right: 30, bottom: 5),
-            child: NavigationBarTheme(
-              data: NavigationBarThemeData(
-                backgroundColor: Colors.transparent,
-                labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-                indicatorColor: Colors.transparent,
-                overlayColor: WidgetStateProperty.all(Colors.transparent),
-                shadowColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                indicatorShape: const CircleBorder(),
-                iconTheme: WidgetStateProperty.resolveWith(
-                  (states) {
-                    if (states.contains(WidgetState.selected)) {
+            Positioned(
+              bottom: 0,
+              left: 30,
+              right: 30,
+              child: NavigationBarTheme(
+                data: NavigationBarThemeData(
+                  backgroundColor: Colors.transparent,
+                  labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+                  indicatorColor: Colors.transparent,
+                  overlayColor: WidgetStateProperty.all(Colors.transparent),
+                  shadowColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  indicatorShape: const CircleBorder(),
+                  iconTheme: WidgetStateProperty.resolveWith(
+                    (states) {
+                      if (states.contains(WidgetState.selected)) {
+                        return IconThemeData(
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 35,
+                        );
+                      }
                       return IconThemeData(
-                        color: Theme.of(context).colorScheme.primary,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withOpacity(0.4),
                         size: 35,
                       );
-                    }
-                    return IconThemeData(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .primary
-                          .withOpacity(0.4),
-                      size: 35,
-                    );
-                  },
+                    },
+                  ),
+                ),
+                child: NavigationBar(
+                  onDestinationSelected: _navigateBottomBar,
+                  selectedIndex: _selectedIndex,
+                  destinations: [
+                    CustomNavigationDestination(
+                      icon: _selectedIndex == 0
+                          ? const Icon(CustomIcons.control)
+                          : const Icon(CustomIcons.control_outline),
+                      label: "Home",
+                      isSelected: _selectedIndex == 0,
+                    ),
+                    CustomNavigationDestination(
+                      icon: _selectedIndex == 1
+                          ? const Icon(CustomIcons.explore)
+                          : const Icon(CustomIcons.explore_outline),
+                      label: "Explorer",
+                      isSelected: _selectedIndex == 1,
+                    ),
+                    CustomNavigationDestination(
+                      icon: _selectedIndex == 2
+                          ? const Icon(CustomIcons.library)
+                          : const Icon(CustomIcons.library_outline),
+                      label: "Library",
+                      isSelected: _selectedIndex == 2,
+                    ),
+                  ],
                 ),
               ),
-              child: NavigationBar(
-                onDestinationSelected: _navigateBottomBar,
-                selectedIndex: _selectedIndex,
-                destinations: [
-                  CustomNavigationDestination(
-                    icon: _selectedIndex == 0
-                        ? const Icon(CustomIcons.control)
-                        : const Icon(CustomIcons.control_outline),
-                    label: "Home",
-                    isSelected: _selectedIndex == 0,
-                  ),
-                  CustomNavigationDestination(
-                    icon: _selectedIndex == 1
-                        ? const Icon(CustomIcons.explore)
-                        : const Icon(CustomIcons.explore_outline),
-                    label: "Explorer",
-                    isSelected: _selectedIndex == 1,
-                  ),
-                  CustomNavigationDestination(
-                    icon: _selectedIndex == 2
-                        ? const Icon(CustomIcons.library)
-                        : const Icon(CustomIcons.library_outline),
-                    label: "Library",
-                    isSelected: _selectedIndex == 2,
-                  ),
-                ],
-              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

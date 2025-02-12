@@ -25,42 +25,42 @@ func UploadAvatar() gin.HandlerFunc {
 		}
 
 		userId := claims["UserId"].(string)
-		handleFileUpload(c, userId, "avatar", "avatar", "png")
+		handleFileUpload(c, userId, "avatar", "png")
 	}
 }
 
 func UploadCover() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Param("id")
-		if id == "" {
+		albumId := c.Param("albumId")
+		if albumId == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ID não fornecido"})
 			return
 		}
 
-		handleFileUpload(c, id, "cover", "cover", "png")
+		handleFileUpload(c, albumId, "cover", "png")
 	}
 }
 
 func GetAvatar() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		getImage(c, "avatar", "default.png")
+		getImage(c, "avatar")
 	}
 }
 
 func GetCover() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		getImage(c, "cover", "default.png")
+		getImage(c, "cover")
 	}
 }
 
-func handleFileUpload(c *gin.Context, id string, subDir string, fieldName string, fileExtension string) {
+func handleFileUpload(c *gin.Context, id string, subDir string, fileExtension string) {
 	err := c.Request.ParseMultipartForm(10 << 20)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Erro ao processar o arquivo"})
 		return
 	}
 
-	file, _, err := c.Request.FormFile(fieldName)
+	file, _, err := c.Request.FormFile(subDir)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Nenhum arquivo enviado"})
 		return
@@ -92,13 +92,13 @@ func handleFileUpload(c *gin.Context, id string, subDir string, fieldName string
 	c.JSON(http.StatusOK, gin.H{"message": "Arquivo enviado com sucesso!", "filePath": filePath})
 }
 
-func getImage(c *gin.Context, subDir string, defaultFile string) {
+func getImage(c *gin.Context, subDir string) {
 	id := c.Param("id")
 	filename := fmt.Sprintf("%s.png", id)
 	filePath := filepath.Join("uploads", "image", subDir, filename)
 
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		filePath = filepath.Join("uploads", "image", subDir, defaultFile)
+		filePath = filepath.Join("uploads", "image", subDir, "default.png")
 	}
 
 	c.File(filePath)

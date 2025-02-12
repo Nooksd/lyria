@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"server/src/middlewares"
 	"server/src/routes"
 	websocketmanager "server/src/websocket"
 
@@ -21,11 +22,15 @@ func main() {
 
 	go websocketmanager.ManagerInstance.Run()
 
-	routes.ImageRoutes(router)
 	routes.AuthRoutes(router)
-	routes.UserRoutes(router)
-	routes.MusicRoutes(router)
-	routes.MusicJamRoutes(router)
+	routes.ImageRoutes(router)
+
+	authProtected := router.Group("/")
+	authProtected.Use(middlewares.Authenticate())
+
+	routes.UserRoutes(authProtected)
+	routes.MusicRoutes(authProtected)
+	routes.MusicJamRoutes(authProtected)
 
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Erro ao iniciar o servidor: %v", err)
