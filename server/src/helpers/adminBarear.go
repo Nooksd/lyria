@@ -21,7 +21,7 @@ func CheckAdminOrUidPermission(c *gin.Context, targetUid string) (bool, string, 
 	}
 
 	userType := claims["UserType"].(string)
-	userId := claims["Uid"].(string)
+	userId := claims["UserId"].(string)
 
 	if userType != "ADMIN" && userId != targetUid {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Você não tem permissão para acessar este recurso"})

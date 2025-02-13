@@ -40,15 +40,14 @@ func CreateArtist() gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-
 		if count > 0 {
 			c.JSON(http.StatusConflict, gin.H{"error": "artista já cadastrado"})
 			return
 		}
 
 		artist.ID = primitive.NewObjectID()
-		artist.CreatedAt = time.Now()
 		artist.AvatarUrl = os.Getenv("SERVER_URL") + "/image/avatar/" + artist.ID.Hex()
+		artist.CreatedAt = time.Now()
 		artist.UpdatedAt = artist.CreatedAt
 
 		if validationErr := validate.Struct(&artist); validationErr != nil {

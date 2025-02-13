@@ -37,6 +37,8 @@ class MusicTile extends StatelessWidget {
       ),
       title: Text(
         title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           fontSize: 18,
           fontWeight: FontWeight.w600,
@@ -44,6 +46,8 @@ class MusicTile extends StatelessWidget {
       ),
       subtitle: Text(
         subtitle,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: TextStyle(
           color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
         ),

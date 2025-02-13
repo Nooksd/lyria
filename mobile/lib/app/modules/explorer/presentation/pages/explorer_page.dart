@@ -61,6 +61,10 @@ class _ExplorerPageState extends State<ExplorerPage> {
     });
   }
 
+  Future<void> _addToHistory(Search search) async {
+    await cubit.addToHistory(search);
+  }
+
   Future<void> _search(String query) async {
     final history = await cubit.search(query);
 
@@ -104,6 +108,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
                         setState(() {
                           isSearchFocused = false;
                           searchFocus.unfocus();
+                          searchController.clear();
                         });
                       }
                     },
@@ -132,7 +137,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
             ),
             SizedBox(height: 40),
             Text(
-              isSearchFocused ? 'Buscas recentes' : 'Gêneros',
+              isSearchFocused ? isHistory ? 'Buscas recentes' : 'Resultados' : 'Gêneros',
               style: TextStyle(
                 fontSize: 20,
               ),
@@ -145,6 +150,9 @@ class _ExplorerPageState extends State<ExplorerPage> {
                       searches: searches,
                       onRemove: (index) => _removeHistory(searches[index]),
                       isHistory: isHistory,
+                      addToHistory: (search) => {
+                        if (!isHistory) {_addToHistory(search)}
+                      },
                     ),
             ),
           ],

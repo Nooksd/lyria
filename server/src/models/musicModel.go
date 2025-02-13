@@ -13,6 +13,7 @@ type Music struct {
 	ArtistID  primitive.ObjectID `json:"artistId" bson:"artistId" validate:"required"`
 	AlbumID   primitive.ObjectID `json:"albumId" bson:"albumId" validate:"required"`
 	Genre     string             `json:"genre" bson:"genre"`
+	Color     string             `json:"color" bson:"color" validate:"required"`
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
 	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt"`
 }

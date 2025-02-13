@@ -1,10 +1,12 @@
+import 'package:lyria/app/modules/music/domain/entities/music.dart';
+
 class Search {
   final String id;
   final String name;
   final String type;
   final String description;
   final String imageUrl;
-  final dynamic music;
+  final Music? music;
 
   const Search({
     required this.id,
@@ -22,7 +24,7 @@ class Search {
       type: json['type'],
       description: json['description'],
       imageUrl: json['imageUrl'],
-      music: json['music'] ?? '',
+      music: json['music'] != null ? Music.fromJson(json['music']) : null,
     );
   }
 
@@ -33,7 +35,7 @@ class Search {
       'type': type,
       'description': description,
       'imageUrl': imageUrl,
-      'music': music,
+      'music': music?.toJson(),
     };
   }
 }

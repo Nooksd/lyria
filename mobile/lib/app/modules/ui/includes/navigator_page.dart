@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
+import 'package:lyria/app/modules/music/presentation/includes/music_indicator.dart';
 import 'package:lyria/app/modules/ui/components/custom_navigation_destination.dart';
 
 class NavigatorPage extends StatefulWidget {
@@ -35,14 +36,14 @@ class NavigatorPageState extends State<NavigatorPage> {
       extendBody: true,
       body: widget.child,
       bottomNavigationBar: SizedBox(
-        height: 120,
+        height: 200,
         child: Stack(
           children: [
             Positioned(
               bottom: 0,
               left: 0,
               right: 0,
-              height: 110,
+              height: 200,
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -59,6 +60,13 @@ class NavigatorPageState extends State<NavigatorPage> {
                 ),
               ),
             ),
+            if (_selectedIndex != 0)
+              Positioned(
+                bottom: 85,
+                left: 0,
+                right: 0,
+                child: const MusicIndicator(),
+              ),
             Positioned(
               bottom: 0,
               left: 30,

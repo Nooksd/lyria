@@ -111,12 +111,17 @@ func GeneralSearch() gin.HandlerFunc {
 			return
 		}
 		for i := range musics {
+			musicData := musics[i]
+			musicData["coverUrl"] = musics[i]["album"].(bson.M)["albumCoverUrl"].(string)
+			musicData["artistName"] = musics[i]["artist"].(bson.M)["name"].(string)
+			musicData["albumName"] = musics[i]["album"].(bson.M)["name"].(string)
+
 			results = append(results, bson.M{
 				"name":        musics[i]["name"],
 				"type":        "music",
 				"id":          musics[i]["_id"],
 				"description": "Música · " + musics[i]["artist"].(bson.M)["name"].(string),
-				"music":       musics[i],
+				"music":       musicData,
 				"imageUrl":    musics[i]["album"].(bson.M)["albumCoverUrl"].(string),
 			})
 		}

@@ -3,6 +3,7 @@ import 'package:lyria/app/core/services/http/dio_client.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/core/services/storege/shared_preferences_client.dart';
+import 'package:lyria/app/core/themes/theme_cubit.dart';
 import 'package:lyria/app/modules/auth/data/api_auth_repo.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/explorer/data/api_search_repo.dart';
@@ -32,10 +33,13 @@ void setupLocator() {
   getIt.registerSingleton<AuthCubit>(
     AuthCubit(authRepo: getIt<ApiAuthRepo>()),
   );
+  getIt.registerSingleton<ThemeCubit>(
+    ThemeCubit(),
+  );
   getIt.registerSingleton<SearchCubit>(
     SearchCubit(searchRepo: getIt<ApiSearchRepo>()),
   );
   getIt.registerSingleton<MusicCubit>(
-    MusicCubit(),
+    MusicCubit(getIt<ThemeCubit>()),
   );
 }

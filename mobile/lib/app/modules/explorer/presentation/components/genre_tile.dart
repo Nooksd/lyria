@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:lyria/app/modules/assets/custom_container.dart';
 
 class GenreTile extends StatelessWidget {
@@ -35,7 +35,10 @@ class GenreTile extends StatelessWidget {
             left: 20,
             child: Text(
               name,
-              style: TextStyle(fontSize: 20),
+              style: TextStyle(
+                fontSize: 20,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
           )
         ],

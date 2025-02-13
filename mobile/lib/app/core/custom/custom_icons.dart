@@ -1,3 +1,4 @@
+
 // ignore_for_file: constant_identifier_names
 
 import 'package:flutter/widgets.dart';
@@ -33,4 +34,5 @@ class CustomIcons {
   static const IconData lock = IconData(0xe816, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData library_outline = IconData(0xe817, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData history = IconData(0xe818, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData pause = IconData(0xe819, fontFamily: _kFontFam, fontPackage: _kFontPkg);
 }

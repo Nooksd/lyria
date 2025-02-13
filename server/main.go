@@ -24,6 +24,7 @@ func main() {
 
 	routes.AuthRoutes(router)
 	routes.ImageRoutes(router)
+	routes.StreamRoutes(router)
 
 	authProtected := router.Group("/")
 	authProtected.Use(middlewares.Authenticate())

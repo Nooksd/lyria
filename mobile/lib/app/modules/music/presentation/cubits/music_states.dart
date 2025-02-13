@@ -14,6 +14,7 @@ class MusicPlaying extends MusicState {
   final Music currentMusic;
   final List<Music> queue;
   final int currentIndex;
+  final bool isPlaying;
   final bool isLoop;
   final bool isShuffle;
 
@@ -21,15 +22,14 @@ class MusicPlaying extends MusicState {
     required this.currentMusic,
     required this.queue,
     required this.currentIndex,
+    required this.isPlaying,
     required this.isLoop,
     required this.isShuffle,
   });
 
   @override
-  List<Object?> get props => [currentMusic, queue, currentIndex, isLoop, isShuffle];
+  List<Object?> get props => [currentMusic, queue, currentIndex, isPlaying, isLoop, isShuffle];
 }
-
-class MusicPaused extends MusicState {}
 
 class MusicStopped extends MusicState {}
 

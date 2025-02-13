@@ -24,10 +24,11 @@ class SearchCubit extends Cubit<SearchState> {
     return _history;
   }
 
-  Future<List<Search>> addToHistory(Search search) async {
+  Future<void> addToHistory(Search search) async {
+    if (_history.contains(search)) return;
+    
     _history.add(search);
     await searchRepo.updateHistory(_history);
-    return _history;
   }
 
   Future<List<Search>> removeFromHistory(Search search) async {

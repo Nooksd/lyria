@@ -1,18 +1,21 @@
 import 'dart:math';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lyria/app/core/themes/theme_cubit.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
 
 class MusicCubit extends Cubit<MusicState> {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final ThemeCubit themeCubit;
   List<Music> _queue = [];
   int _currentIndex = 0;
   bool _isLoop = false;
   bool _isShuffle = false;
 
-  MusicCubit() : super(MusicInitial());
+  MusicCubit(this.themeCubit) : super(MusicInitial());
 
   List<Music> get queue => _queue;
   int get currentIndex => _currentIndex;
@@ -47,11 +50,17 @@ class MusicCubit extends Cubit<MusicState> {
 
     try {
       emit(MusicLoading());
-      await _audioPlayer.setUrl(currentMusic.audioUrl);
+      await _audioPlayer.setUrl(currentMusic.url);
       _audioPlayer.play();
+
+      final newColor =
+          Color(int.parse(currentMusic.color.replaceFirst('#', '0xFF')));
+      themeCubit.updatePrimaryColor(newColor);
+
       emit(MusicPlaying(
         currentMusic: currentMusic,
         queue: _queue,
+        isPlaying: _audioPlayer.playing,
         currentIndex: _currentIndex,
         isLoop: _isLoop,
         isShuffle: _isShuffle,
@@ -64,12 +73,20 @@ class MusicCubit extends Cubit<MusicState> {
   void playPause() {
     if (_audioPlayer.playing) {
       _audioPlayer.pause();
-      emit(MusicPaused());
+      emit(MusicPlaying(
+        currentMusic: _queue[_currentIndex],
+        queue: _queue,
+        isPlaying: _audioPlayer.playing,
+        currentIndex: _currentIndex,
+        isLoop: _isLoop,
+        isShuffle: _isShuffle,
+      ));
     } else {
       _audioPlayer.play();
       emit(MusicPlaying(
         currentMusic: _queue[_currentIndex],
         queue: _queue,
+        isPlaying: _audioPlayer.playing,
         currentIndex: _currentIndex,
         isLoop: _isLoop,
         isShuffle: _isShuffle,
@@ -78,7 +95,7 @@ class MusicCubit extends Cubit<MusicState> {
   }
 
   Future<void> next() async {
-    if (_queue.isEmpty) return;
+    if (_queue.isEmpty || _queue.length == _currentIndex + 1) return;
 
     if (_isLoop) {
       await _playCurrent();
@@ -91,7 +108,7 @@ class MusicCubit extends Cubit<MusicState> {
   }
 
   Future<void> previous() async {
-    if (_queue.isEmpty) return;
+    if (_queue.isEmpty || _currentIndex == 0) return;
 
     if (_currentIndex > 0) {
       _currentIndex--;
@@ -107,6 +124,7 @@ class MusicCubit extends Cubit<MusicState> {
       currentMusic: _queue[_currentIndex],
       queue: _queue,
       currentIndex: _currentIndex,
+      isPlaying: _audioPlayer.playing,
       isLoop: _isLoop,
       isShuffle: _isShuffle,
     ));
@@ -125,15 +143,28 @@ class MusicCubit extends Cubit<MusicState> {
       currentMusic: _queue[_currentIndex],
       queue: _queue,
       currentIndex: _currentIndex,
+      isPlaying: _audioPlayer.playing,
       isLoop: _isLoop,
       isShuffle: _isShuffle,
     ));
+  }
+
+  void stop() {
+    _audioPlayer.stop();
+    _queue.clear();
+    _currentIndex = 0;
+    _isLoop = false;
+    _isShuffle = false;
+    themeCubit.updatePrimaryColor(Colors.white);
+    
+    emit(MusicStopped());
   }
 
   @override
   Future<void> close() {
     _audioPlayer.dispose();
     _queue.clear();
+
     return super.close();
   }
 }
