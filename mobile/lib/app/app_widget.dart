@@ -5,6 +5,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/themes/light_theme.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
+import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 
 class AppWidget extends StatelessWidget {
   const AppWidget({super.key});
@@ -20,8 +21,15 @@ class AppWidget extends StatelessWidget {
 
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-    return BlocProvider<AuthCubit>(
-      create: (context) => getIt<AuthCubit>(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<AuthCubit>(
+          create: (context) => getIt<AuthCubit>(),
+        ),
+        BlocProvider<MusicCubit>(
+          create: (context) => getIt<MusicCubit>(),
+        ),
+      ],
       child: MaterialApp.router(
         debugShowCheckedModeBanner: false,
         title: 'Lyria',

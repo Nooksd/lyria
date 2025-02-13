@@ -14,9 +14,29 @@ class MusicCubit extends Cubit<MusicState> {
 
   MusicCubit() : super(MusicInitial());
 
-  Future<void> setQueue(List<Music> queue) async {
+  List<Music> get queue => _queue;
+  int get currentIndex => _currentIndex;
+  bool get isLoop => _isLoop;
+  bool get isShuffle => _isShuffle;
+
+  Future<void> setQueue(List<Music> queue, int currentIndex) async {
     _queue = queue;
-    _currentIndex = 0;
+    _currentIndex = currentIndex;
+    await _playCurrent();
+  }
+
+  Future<void> addToQueue(Music music) async {
+    _queue.add(music);
+    await _playCurrent();
+  }
+
+  Future<void> removeFromQueue(Music music) async {
+    _queue.remove(music);
+    await _playCurrent();
+  }
+
+  Future<void> clearQueue() async {
+    _queue.clear();
     await _playCurrent();
   }
 
@@ -113,6 +133,7 @@ class MusicCubit extends Cubit<MusicState> {
   @override
   Future<void> close() {
     _audioPlayer.dispose();
+    _queue.clear();
     return super.close();
   }
 }

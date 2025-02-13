@@ -37,5 +37,5 @@ class Music extends Equatable {
   @override
   List<Object?> get props => [id, url, name, artistId, albumId, genre, createdAt, updatedAt];
 
-  String get audioUrl => url; // Corrigindo o TODO
+  String get audioUrl => url;
 }

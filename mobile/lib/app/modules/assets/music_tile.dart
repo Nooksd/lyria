@@ -27,6 +27,7 @@ class MusicTile extends StatelessWidget {
           width: 55,
           height: 55,
           decoration: BoxDecoration(
+            color: isRound ? Theme.of(context).colorScheme.primary : null,
             image: DecorationImage(
               image: NetworkImage(image),
               fit: BoxFit.cover,
@@ -34,9 +35,21 @@ class MusicTile extends StatelessWidget {
           ),
         ),
       ),
-      title: Text(title),
-      subtitle: Text(subtitle),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+        ),
+      ),
       trailing: trailing,
+      onTap: onTap,
     );
   }
 }

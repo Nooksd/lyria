@@ -41,6 +41,7 @@ func GeneralSearch() gin.HandlerFunc {
 				"type":        "artist",
 				"id":          artists[i]["_id"],
 				"description": "Artista",
+				"imageUrl":    artists[i]["avatarUrl"],
 			})
 		}
 
@@ -73,6 +74,7 @@ func GeneralSearch() gin.HandlerFunc {
 				"type":        "album",
 				"id":          albums[i]["_id"],
 				"description": "Álbum · " + albums[i]["artist"].(bson.M)["name"].(string),
+				"imageUrl":    albums[i]["albumCoverUrl"],
 			})
 		}
 
@@ -114,6 +116,8 @@ func GeneralSearch() gin.HandlerFunc {
 				"type":        "music",
 				"id":          musics[i]["_id"],
 				"description": "Música · " + musics[i]["artist"].(bson.M)["name"].(string),
+				"music":       musics[i],
+				"imageUrl":    musics[i]["album"].(bson.M)["albumCoverUrl"].(string),
 			})
 		}
 

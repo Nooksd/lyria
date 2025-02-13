@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
-import 'package:lyria/app/modules/assets/music_tile.dart';
-import 'package:lyria/app/modules/explorer/presentation/components/genre_tile.dart';
+import 'package:lyria/app/modules/explorer/domain/entities/search.dart';
+import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
+import 'package:lyria/app/modules/explorer/presentation/pages/category_include.dart';
+import 'package:lyria/app/modules/explorer/presentation/pages/search_include.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
 
 class ExplorerPage extends StatefulWidget {
@@ -12,58 +15,35 @@ class ExplorerPage extends StatefulWidget {
 }
 
 class _ExplorerPageState extends State<ExplorerPage> {
+  final SearchCubit cubit = getIt<SearchCubit>();
+
   final TextEditingController searchController = TextEditingController();
   final FocusNode searchFocus = FocusNode();
   bool isSearchFocused = false;
-  List<Map<String, String>> recentSearches = [];
-
-  final List<Map<String, String>> genres = [
-    {
-      'name1': 'Pop',
-      'image1': 'assets/images/pop.png',
-      'name2': 'Rock',
-      'image2': 'assets/images/rock.png',
-    },
-    {
-      'name1': 'Rap',
-      'image1': 'assets/images/rap.png',
-      'name2': 'Trap',
-      'image2': 'assets/images/trap.png',
-    },
-    {
-      'name1': 'Funk',
-      'image1': 'assets/images/funk.png',
-      'name2': 'Indie',
-      'image2': 'assets/images/indie.png',
-    }
-  ];
+  List<Search> searches = [];
+  bool isHistory = false;
 
   @override
   void initState() {
     super.initState();
     searchFocus.addListener(() {
+      if (searches.isEmpty) {
+        _getHistory();
+        setState(() {
+          isHistory = true;
+        });
+      }
       setState(() {
         isSearchFocused = searchFocus.hasFocus;
       });
     });
-    recentSearches = [
-      {
-        'name': 'Ela é Profissional',
-        'image':
-            'https://i1.sndcdn.com/avatars-WlCuo6NuEcfO1Gag-4KOIYw-t500x500.jpg',
-        'subtitle': 'Música . GP DA ZL',
-        'id': '1',
-        'type': 'music',
-      },
-      {
-        'name': 'GP DA ZL',
-        'image':
-            'https://i.scdn.co/image/ab6761610000e5eba0083f665d3c4a76119b20f2',
-        'subtitle': 'Artista',
-        'id': '2',
-        'type': 'artist',
-      },
-    ];
+    searchController.addListener(() {
+      if (searchController.text.isEmpty) {
+        _getHistory();
+      } else {
+        _search(searchController.text);
+      }
+    });
   }
 
   @override
@@ -71,6 +51,30 @@ class _ExplorerPageState extends State<ExplorerPage> {
     searchController.dispose();
     searchFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _getHistory() async {
+    final history = await cubit.getHistory();
+    setState(() {
+      searches = history;
+      isHistory = true;
+    });
+  }
+
+  Future<void> _search(String query) async {
+    final history = await cubit.search(query);
+
+    setState(() {
+      searches = history;
+      isHistory = false;
+    });
+  }
+
+  Future<void> _removeHistory(Search search) async {
+    final history = await cubit.removeFromHistory(search);
+    setState(() {
+      searches = history;
+    });
   }
 
   @override
@@ -94,9 +98,19 @@ class _ExplorerPageState extends State<ExplorerPage> {
                 focusNode: searchFocus,
                 decoration: InputDecoration(
                   hintText: 'Pesquisar',
-                  prefixIcon: Icon(
-                    CustomIcons.search,
-                    color: Theme.of(context).colorScheme.primary,
+                  prefixIcon: GestureDetector(
+                    onTap: () {
+                      if (isSearchFocused) {
+                        setState(() {
+                          isSearchFocused = false;
+                          searchFocus.unfocus();
+                        });
+                      }
+                    },
+                    child: Icon(
+                      isSearchFocused ? CustomIcons.goback : CustomIcons.search,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
                   prefixIconConstraints: const BoxConstraints(minWidth: 60),
                   enabledBorder: OutlineInputBorder(
@@ -126,62 +140,11 @@ class _ExplorerPageState extends State<ExplorerPage> {
             SizedBox(height: 20),
             Expanded(
               child: !isSearchFocused
-                  ? SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: 100),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: List.generate(
-                            genres.length,
-                            (index) => Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    GenreTile(
-                                      width: screenWidth * 0.425,
-                                      name: genres[index]['name1']!,
-                                      image: genres[index]['image1']!,
-                                    ),
-                                    GenreTile(
-                                      width: screenWidth * 0.425,
-                                      name: genres[index]['name2']!,
-                                      image: genres[index]['image2']!,
-                                    ),
-                                  ],
-                                ),
-                                SizedBox(height: 30),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  : SingleChildScrollView(
-                      physics: const ClampingScrollPhysics(),
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: 100),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: List.generate(
-                            recentSearches.length,
-                            (index) => MusicTile(
-                              title: recentSearches[index]['name']!,
-                              subtitle: recentSearches[index]['subtitle']!,
-                              image: recentSearches[index]['image']!,
-                              isRound: recentSearches[index]['type'] == 'artist',
-                              onTap: () {},
-                              trailing: Icon(
-                                CustomIcons.x,
-                                size: 7,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+                  ? CategoryInclude()
+                  : SearchInclude(
+                      searches: searches,
+                      onRemove: (index) => _removeHistory(searches[index]),
+                      isHistory: isHistory,
                     ),
             ),
           ],

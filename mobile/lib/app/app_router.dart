@@ -4,6 +4,7 @@ import 'package:get_it/get_it.dart';
 import 'package:lyria/app/core/custom/splash.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/pages/decide_page.dart';
+import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
 import 'package:lyria/app/modules/explorer/presentation/pages/explorer_page.dart';
 import 'package:lyria/app/modules/home/presentation/pages/home_page.dart';
 import 'package:lyria/app/modules/library/presentation/pages/library_page.dart';
@@ -48,7 +49,10 @@ class AppRouter {
           GoRoute(
             path: '/auth/ui/explorer',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: ExplorerPage(),
+              child: BlocProvider.value(
+                value: getIt<SearchCubit>(),
+                child: ExplorerPage(),
+              ),
             ),
           ),
           GoRoute(
