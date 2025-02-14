@@ -15,12 +15,23 @@ class MusicCubit extends Cubit<MusicState> {
   bool _isLoop = false;
   bool _isShuffle = false;
 
-  MusicCubit(this.themeCubit) : super(MusicInitial());
+  MusicCubit(this.themeCubit) : super(MusicInitial()) {
+    _audioPlayer.playerStateStream.listen((playerState) {
+      if (playerState.processingState == ProcessingState.completed) {
+        _onSongComplete();
+      }
+    });
+  }
 
   List<Music> get queue => _queue;
   int get currentIndex => _currentIndex;
   bool get isLoop => _isLoop;
   bool get isShuffle => _isShuffle;
+
+  Stream<Duration?> get positionStream => _audioPlayer.positionStream;
+  Stream<Duration?> get durationStream => _audioPlayer.durationStream;
+  Duration? get duration => _audioPlayer.duration;
+  Duration get position => _audioPlayer.position;
 
   Future<void> setQueue(List<Music> queue, int currentIndex) async {
     _queue = queue;
@@ -30,7 +41,10 @@ class MusicCubit extends Cubit<MusicState> {
 
   Future<void> addToQueue(Music music) async {
     _queue.add(music);
-    await _playCurrent();
+    if (_queue.length == 1) {
+      _currentIndex = 0;
+      await _playCurrent();
+    }
   }
 
   Future<void> removeFromQueue(Music music) async {
@@ -49,7 +63,6 @@ class MusicCubit extends Cubit<MusicState> {
     final currentMusic = _queue[_currentIndex];
 
     try {
-      emit(MusicLoading());
       await _audioPlayer.setUrl(currentMusic.url);
       _audioPlayer.play();
 
@@ -158,6 +171,39 @@ class MusicCubit extends Cubit<MusicState> {
     themeCubit.updatePrimaryColor(Colors.white);
     
     emit(MusicStopped());
+  }
+
+  void _onSongComplete() async {
+    if (_queue.isEmpty) return;
+
+    if (_isLoop) {
+      _playCurrent();
+      return;
+    }
+
+    if (_isShuffle) {
+      _queue.shuffle(Random());
+    }
+
+    if (_currentIndex < _queue.length - 1) {
+      _currentIndex++;
+      _playCurrent();
+    } else {
+      _currentIndex = 0;
+      await _playCurrent();
+      _audioPlayer.pause();
+    }
+  }
+
+  Future<void> seekTo(Duration position) async {
+    await _audioPlayer.seek(position);
+  }
+
+  Future<void> setIndex(int index) async {
+    if (index < 0 || index >= _queue.length) return;
+    
+    _currentIndex = index;
+    await _playCurrent();
   }
 
   @override

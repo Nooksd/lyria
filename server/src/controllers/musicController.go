@@ -50,6 +50,8 @@ func CreateMusic() gin.HandlerFunc {
 
 		_, err := musicCollection.InsertOne(ctx, music)
 		if err != nil {
+			os.Remove(fmt.Sprintf("./uploads/music/%s.m4a", music.ID.Hex()))
+
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao salvar no banco de dados"})
 			return
 		}
@@ -186,14 +188,13 @@ func StreamMusic() gin.HandlerFunc {
 		buffer := make([]byte, chunkSize)
 		file.Read(buffer)
 		c.Writer.Write(buffer)
-
 	}
 }
 
 func downloadMusic(url string, id string) bool {
 	outputPath := fmt.Sprintf("./uploads/music/%s.%%(ext)s", id)
 
-	cmd := exec.Command("./cmd/yt-dlp.exe", "-f", "bestaudio[ext=m4a]", "-o", outputPath, url)
+	cmd := exec.Command("yt-dlp.exe", "-f", "bestaudio[ext=m4a]", "-o", outputPath, url)
 
 	err := cmd.Run()
 

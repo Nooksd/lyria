@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 
 class MusicTile extends StatelessWidget {
@@ -7,6 +9,7 @@ class MusicTile extends StatelessWidget {
   final String subtitle;
   final Widget trailing;
   final VoidCallback onTap;
+  final VoidCallback onLongPress;
 
   const MusicTile({
     super.key,
@@ -16,6 +19,7 @@ class MusicTile extends StatelessWidget {
     required this.isRound,
     required this.onTap,
     required this.trailing,
+    required this.onLongPress,
   });
 
   @override
@@ -54,6 +58,7 @@ class MusicTile extends StatelessWidget {
       ),
       trailing: trailing,
       onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 }

@@ -21,6 +21,14 @@ class SearchInclude extends StatelessWidget {
     required this.addToHistory,
   });
 
+  Future<void> _addToQueue(Search search) async {
+    addToHistory(search);
+
+    if (search.music != null && search.music!.url != '') {
+      await cubit.addToQueue(search.music!);
+    }
+  }
+
   Future<void> _onTap(Search search) async {
     addToHistory(search);
 
@@ -39,6 +47,38 @@ class SearchInclude extends StatelessWidget {
     }
   }
 
+  void _showMoreOptions(BuildContext context, Search search) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      useRootNavigator: true,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: Icon(CustomIcons.plus),
+              title: Text('Adicionar a fila'),
+              onTap: () {
+                _addToQueue(search);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(CustomIcons.play),
+              title: Text('Tocar música'),
+              onTap: () {
+                _onTap(search);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
@@ -51,6 +91,7 @@ class SearchInclude extends StatelessWidget {
         onTap: () {
           _onTap(searches[index]);
         },
+        onLongPress: () => _showMoreOptions(context, searches[index]),
         trailing: isHistory
             ? GestureDetector(
                 onTap: () => onRemove(index),
