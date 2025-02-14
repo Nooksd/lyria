@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 
 class MusicTile extends StatelessWidget {
@@ -53,7 +51,7 @@ class MusicTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
         ),
       ),
       trailing: trailing,

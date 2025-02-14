@@ -20,8 +20,8 @@ class CustomContainer extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            Theme.of(context).colorScheme.primary.withOpacity(0.3),
-            Theme.of(context).colorScheme.primary.withOpacity(0),
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0.3),
+            Theme.of(context).colorScheme.primary.withValues(alpha: 0),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,

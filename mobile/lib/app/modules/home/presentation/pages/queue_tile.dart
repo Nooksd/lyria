@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use
-
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -21,7 +19,7 @@ class _QueueTileState extends State<QueueTile> {
   final PageController _pageController = PageController(viewportFraction: 0.6);
   int _lastKnownIndex = 0;
   bool _isAnimating = false;
-  
+
   @override
   void initState() {
     super.initState();
@@ -56,11 +54,13 @@ class _QueueTileState extends State<QueueTile> {
             _lastKnownIndex = state.currentIndex;
             _isAnimating = true;
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              _pageController.animateToPage(
+              _pageController
+                  .animateToPage(
                 state.currentIndex,
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutCubic,
-              ).then((_) {
+              )
+                  .then((_) {
                 _isAnimating = false;
               });
             });
@@ -147,7 +147,9 @@ class _QueueTileState extends State<QueueTile> {
                                             child: Icon(
                                               CustomIcons.play,
                                               size: 50,
-                                              color: Colors.white,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .onPrimary,
                                             ),
                                           ),
                                         ),

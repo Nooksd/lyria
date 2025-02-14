@@ -8,9 +8,11 @@ class Music extends Equatable {
   final String artistName;
   final String albumId;
   final String albumName;
+  final List<double> waveform;
   final String genre;
   final String color;
   final String coverUrl;
+  final String? lyrics;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -22,9 +24,11 @@ class Music extends Equatable {
     required this.artistName,
     required this.albumId,
     required this.albumName,
+    required this.waveform,
     required this.genre,
-    required this.coverUrl,
     required this.color,
+    required this.coverUrl,
+    this.lyrics,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -38,16 +42,18 @@ class Music extends Equatable {
       artistName: json['artistName'] as String,
       albumId: json['albumId'] as String,
       albumName: json['albumName'] as String,
+      waveform: (json['waveform'] as List).map((e) => (e as num).toDouble()).toList(),
       genre: json['genre'] as String,
       color: json['color'] as String,
       coverUrl: json['coverUrl'] as String,
+      lyrics: json['lyrics'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
   }
 
   @override
-  List<Object?> get props => [id, url, name, artistId, artistName, albumId, albumName, genre, color, coverUrl, createdAt, updatedAt];
+  List<Object?> get props => [id, url, name, artistId, artistName, albumId, albumName, waveform, genre, color, coverUrl, lyrics, createdAt, updatedAt];
 
   String get audioUrl => url;
 
@@ -60,9 +66,11 @@ class Music extends Equatable {
       'artistName': artistName,
       'albumId': albumId,
       'albumName': albumName,
+      'waveform': waveform,
       'genre': genre,
       'color': color,
       'coverUrl': coverUrl,
+      'lyrics': lyrics,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };

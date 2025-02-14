@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -53,11 +53,11 @@ class NavigatorPageState extends State<NavigatorPage> {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            baseColor.withOpacity(1),
-                            baseColor.withOpacity(0.97),
-                            baseColor.withOpacity(0.8),
-                            baseColor.withOpacity(0.4),
-                            baseColor.withOpacity(0),
+                            baseColor.withValues(alpha: 1),
+                            baseColor.withValues(alpha: 0.97),
+                            baseColor.withValues(alpha: 0.8),
+                            baseColor.withValues(alpha: 0.4),
+                            baseColor.withValues(alpha: 0),
                           ],
                           begin: Alignment.bottomCenter,
                           end: Alignment.topCenter,
@@ -101,7 +101,7 @@ class NavigatorPageState extends State<NavigatorPage> {
                       color: Theme.of(context)
                           .colorScheme
                           .primary
-                          .withOpacity(0.4),
+                          .withValues(alpha: 0.4),
                       size: 35,
                     );
                   },

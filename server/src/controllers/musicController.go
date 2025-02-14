@@ -1,8 +1,11 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"os/exec"
@@ -44,11 +47,18 @@ func CreateMusic() gin.HandlerFunc {
 			return
 		}
 
+		waveForm, err := GetWaveform("uploads/music/" + music.ID.Hex() + ".m4a")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao gerar o waveform"})
+			return
+		}
+
+		music.Waveform = waveForm
 		music.Url = os.Getenv("SERVER_URL") + "/stream/" + music.ID.Hex()
 		music.CreatedAt = time.Now()
 		music.UpdatedAt = music.CreatedAt
 
-		_, err := musicCollection.InsertOne(ctx, music)
+		_, err = musicCollection.InsertOne(ctx, music)
 		if err != nil {
 			os.Remove(fmt.Sprintf("./uploads/music/%s.m4a", music.ID.Hex()))
 
@@ -199,4 +209,105 @@ func downloadMusic(url string, id string) bool {
 	err := cmd.Run()
 
 	return err == nil
+}
+
+func GetWaveform(audioPath string) ([]float64, error) {
+	tmpfile, err := os.CreateTemp("", "audio-*.raw")
+	if err != nil {
+		return nil, fmt.Errorf("erro ao criar arquivo temporário: %v", err)
+	}
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+
+	cmd := exec.Command(
+		"ffmpeg",
+		"-i", audioPath,
+		"-ac", "1",
+		"-ar", "44100",
+		"-f", "s16le",
+		"-acodec", "pcm_s16le",
+		"-y",
+		tmpfile.Name(),
+	)
+
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("erro no ffmpeg: %v\nSaída de erro: %s", err, stderr.String())
+	}
+
+	data, err := os.ReadFile(tmpfile.Name())
+	if err != nil {
+		return nil, fmt.Errorf("erro ao ler arquivo PCM: %v", err)
+	}
+
+	if len(data)%2 != 0 {
+		return nil, fmt.Errorf("tamanho inválido de dados PCM")
+	}
+
+	samples := make([]int16, len(data)/2)
+	for i := range samples {
+		samples[i] = int16(binary.LittleEndian.Uint16(data[2*i : 2*(i+1)]))
+	}
+
+	var globalMax int16 = 0
+	for _, sample := range samples {
+		abs := sample
+		if abs < 0 {
+			abs = -abs
+		}
+		if abs > globalMax {
+			globalMax = abs
+		}
+	}
+
+	if globalMax == 0 {
+		return make([]float64, 70), nil
+	}
+
+	const (
+		floor    = 0.1
+		curve    = 2.5
+		emphasis = 0.15
+	)
+
+	const numSegments = 70
+	waveform := make([]float64, numSegments)
+	totalSamples := len(samples)
+
+	for i := 0; i < numSegments; i++ {
+		start := (i * totalSamples) / numSegments
+		end := ((i + 1) * totalSamples) / numSegments
+
+		if start >= end {
+			continue
+		}
+
+		max := int16(0)
+		for _, sample := range samples[start:end] {
+			abs := sample
+			if abs < 0 {
+				abs = -abs
+			}
+			if abs > max {
+				max = abs
+			}
+		}
+
+		normalized := float64(max) / float64(globalMax)
+
+		compressed := math.Pow(normalized, curve)
+
+		finalValue := (emphasis * normalized) + ((1 - emphasis) * compressed)
+
+		if finalValue < floor {
+			finalValue = 0
+		} else {
+			finalValue = (finalValue - floor) / (1 - floor)
+		}
+
+		waveform[i] = math.Round(finalValue*100) / 100
+	}
+
+	return waveform, nil
 }

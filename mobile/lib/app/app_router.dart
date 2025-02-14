@@ -8,7 +8,10 @@ import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart
 import 'package:lyria/app/modules/explorer/presentation/pages/explorer_page.dart';
 import 'package:lyria/app/modules/home/presentation/pages/home_page.dart';
 import 'package:lyria/app/modules/library/presentation/pages/library_page.dart';
+import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
+import 'package:lyria/app/modules/music/presentation/includes/music_page.dart';
 import 'package:lyria/app/modules/ui/includes/navigator_page.dart';
+import 'package:flutter/material.dart';
 
 final GetIt getIt = GetIt.instance;
 
@@ -32,6 +35,52 @@ class AppRouter {
             value: getIt<AuthCubit>(),
             child: const DecidePage(),
           ),
+        ),
+      ),
+      GoRoute(
+        path: '/auth/music',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          child: BlocProvider.value(
+            value: getIt<MusicCubit>(),
+            child: const MusicPage(),
+          ),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            final overlayAnimation = CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.0, 0.4),
+            );
+
+            final contentAnimation = CurvedAnimation(
+              parent: animation,
+              curve: const Interval(0.4, 1.0),
+            );
+
+            return Stack(
+              children: [
+                FadeTransition(
+                  opacity: overlayAnimation,
+                  child: Container(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primaryContainer
+                        .withValues(alpha: 0.4),
+                  ),
+                ),
+                SlideTransition(
+                  position: Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).animate(animation),
+                  child: FadeTransition(
+                    opacity: contentAnimation,
+                    child: child,
+                  ),
+                ),
+              ],
+            );
+          },
+          transitionDuration: const Duration(milliseconds: 500),
+          reverseTransitionDuration: const Duration(milliseconds: 500),
         ),
       ),
       ShellRoute(

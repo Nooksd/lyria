@@ -1,11 +1,13 @@
-// ignore_for_file: deprecated_member_use
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/assets/custom_container.dart';
+import 'package:lyria/app/modules/home/presentation/pages/create_music_jam_tile.dart';
+import 'package:lyria/app/modules/home/presentation/pages/playing_music_tile.dart';
 import 'package:lyria/app/modules/home/presentation/pages/queue_tile.dart';
+import 'package:lyria/app/modules/assets/seek_tile.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
@@ -21,6 +23,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage>
     with SingleTickerProviderStateMixin {
   int volume = 0;
+  bool isRotating = true;
 
   final MusicCubit cubit = getIt<MusicCubit>();
   late AnimationController _rotationController;
@@ -30,9 +33,9 @@ class _HomePageState extends State<HomePage>
     super.initState();
     _initVolumeControl();
     _rotationController = AnimationController(
-      duration: const Duration(seconds: 10),
+      duration: const Duration(seconds: 8),
       vsync: this,
-    )..repeat();
+    );
   }
 
   @override
@@ -70,6 +73,14 @@ class _HomePageState extends State<HomePage>
     }
   }
 
+  void _handleMusicStateChange(MusicState state) {
+    if (state is MusicPlaying && state.isPlaying) {
+      _rotationController.repeat();
+    } else {
+      _rotationController.stop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -77,6 +88,8 @@ class _HomePageState extends State<HomePage>
     return BlocBuilder<MusicCubit, MusicState>(
       bloc: cubit,
       builder: (context, state) {
+        _handleMusicStateChange(state);
+
         return Scaffold(
           appBar: CustomAppBar(),
           body: Column(
@@ -116,157 +129,20 @@ class _HomePageState extends State<HomePage>
                                       ? screenWidth * 0.35
                                       : screenWidth * 0.7,
                                   height: state is MusicPlaying ? 200 : 300,
-                                  child: Stack(
-                                    children: [
-                                      Center(
-                                        child: Column(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            ElevatedButton(
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary,
-                                                shape: CircleBorder(),
-                                                padding: EdgeInsets.all(0),
-                                                minimumSize: Size(50, 50),
-                                              ),
-                                              onPressed: () {},
-                                              child: Icon(
-                                                CustomIcons.plus,
-                                                size: 30,
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onPrimary,
-                                              ),
-                                            ),
-                                            SizedBox(height: 10),
-                                            Text(
-                                              'Criar MusicJam',
-                                              style: TextStyle(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .onSurface,
-                                                fontSize: 16,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      Positioned(
-                                        right: 25,
-                                        bottom: 25,
-                                        child: Icon(
-                                          CustomIcons.connect,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  child: CreateMusicJamTile(),
                                 ),
                                 if (state is MusicPlaying)
                                   SizedBox(width: screenWidth * 0.05),
                                 if (state is MusicPlaying)
-                                  CustomContainer(
-                                    width: screenWidth * 0.35,
-                                    height: 200,
-                                    child: Stack(
-                                      children: [
-                                        Positioned(
-                                          top: 0,
-                                          bottom: 0,
-                                          left: 0,
-                                          right: 0,
-                                          child: Center(
-                                            child: ClipRRect(
-                                              borderRadius:
-                                                  BorderRadius.circular(100),
-                                              child: RotationTransition(
-                                                turns: _rotationController,
-                                                child: Container(
-                                                  width: screenWidth * 0.25,
-                                                  height: screenWidth * 0.25,
-                                                  decoration: BoxDecoration(
-                                                    image: DecorationImage(
-                                                      image: NetworkImage(
-                                                        state.currentMusic
-                                                            .coverUrl,
-                                                      ),
-                                                      fit: BoxFit.cover,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          left: 0,
-                                          right: 0,
-                                          top: 0,
-                                          bottom: 0,
-                                          child: Center(
-                                            child: Container(
-                                              width: screenWidth * 0.25,
-                                              height: screenWidth * 0.25,
-                                              decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(100),
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primaryContainer
-                                                    .withOpacity(0.8),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        Positioned(
-                                          bottom: 0,
-                                          top: 0,
-                                          left: 0,
-                                          right: 0,
-                                          child: Center(
-                                            child: Padding(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 10,
-                                              ),
-                                              child: Column(
-                                                mainAxisAlignment:
-                                                    MainAxisAlignment.center,
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.center,
-                                                children: [
-                                                  Text(
-                                                    state.currentMusic.name,
-                                                    textAlign: TextAlign.center,
-                                                    maxLines: 3,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      fontWeight: FontWeight.w600,
-                                                      fontSize: 16,
-                                                      color: Theme.of(context)
-                                                          .colorScheme
-                                                          .onSurface,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    state.currentMusic.artistName,
-                                                    textAlign: TextAlign.center,
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: TextStyle(
-                                                      color: Theme.of(context)
-                                                          .colorScheme
-                                                          .onSurface,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
+                                  GestureDetector(
+                                    onTap: () => context.push('/auth/music'),
+                                    child: CustomContainer(
+                                      width: screenWidth * 0.35,
+                                      height: 200,
+                                      child: PlayingMusicTile(
+                                        state: state,
+                                        rotationController: _rotationController,
+                                      ),
                                     ),
                                   ),
                               ],
@@ -275,9 +151,7 @@ class _HomePageState extends State<HomePage>
                               CustomContainer(
                                 width: screenWidth * 0.75,
                                 height: 70,
-                                child: Center(
-                                  child: Text('Waveform'),
-                                ),
+                                child: SeekTile(),
                               ),
                           ],
                         ),
@@ -297,7 +171,8 @@ class _HomePageState extends State<HomePage>
                             SizedBox(height: 20),
                             Expanded(
                               child: Column(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: List.generate(
                                   10,
                                   (index) {
@@ -308,8 +183,10 @@ class _HomePageState extends State<HomePage>
                                         color: Theme.of(context)
                                             .colorScheme
                                             .primary
-                                            .withOpacity(
-                                                volume >= (index + 1) ? 1 : 0.4),
+                                            .withValues(
+                                                alpha: volume >= (index + 1)
+                                                    ? 1
+                                                    : 0.4),
                                         borderRadius: BorderRadius.circular(25),
                                       ),
                                     );

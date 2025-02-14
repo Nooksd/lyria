@@ -1,4 +1,3 @@
-
 // ignore_for_file: constant_identifier_names
 
 import 'package:flutter/widgets.dart';
@@ -13,7 +12,7 @@ class CustomIcons {
   static const IconData explore = IconData(0xe801, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData explore_outline = IconData(0xe802, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData goback = IconData(0xe803, fontFamily: _kFontFam, fontPackage: _kFontPkg);
-  static const IconData heart = IconData(0xe804, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData heart_outline = IconData(0xe804, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData library = IconData(0xe805, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData minus = IconData(0xe806, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData x = IconData(0xe807, fontFamily: _kFontFam, fontPackage: _kFontPkg);
@@ -35,4 +34,6 @@ class CustomIcons {
   static const IconData library_outline = IconData(0xe817, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData history = IconData(0xe818, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData pause = IconData(0xe819, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData heart = IconData(0xe81b, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData download = IconData(0xe81e, fontFamily: _kFontFam, fontPackage: _kFontPkg);
 }

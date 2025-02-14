@@ -27,7 +27,6 @@ class MusicCubit extends Cubit<MusicState> {
   int get currentIndex => _currentIndex;
   bool get isLoop => _isLoop;
   bool get isShuffle => _isShuffle;
-
   Stream<Duration?> get positionStream => _audioPlayer.positionStream;
   Stream<Duration?> get durationStream => _audioPlayer.durationStream;
   Duration? get duration => _audioPlayer.duration;
@@ -169,7 +168,7 @@ class MusicCubit extends Cubit<MusicState> {
     _isLoop = false;
     _isShuffle = false;
     themeCubit.updatePrimaryColor(Colors.white);
-    
+
     emit(MusicStopped());
   }
 
@@ -182,7 +181,9 @@ class MusicCubit extends Cubit<MusicState> {
     }
 
     if (_isShuffle) {
-      _queue.shuffle(Random());
+      List<Music> nextSongs = _queue.sublist(_currentIndex + 1, _queue.length);
+      nextSongs.shuffle(Random());
+      _queue = _queue.sublist(0, _currentIndex + 1) + nextSongs;
     }
 
     if (_currentIndex < _queue.length - 1) {
@@ -191,7 +192,7 @@ class MusicCubit extends Cubit<MusicState> {
     } else {
       _currentIndex = 0;
       await _playCurrent();
-      _audioPlayer.pause();
+      playPause();
     }
   }
 
@@ -201,7 +202,7 @@ class MusicCubit extends Cubit<MusicState> {
 
   Future<void> setIndex(int index) async {
     if (index < 0 || index >= _queue.length) return;
-    
+
     _currentIndex = index;
     await _playCurrent();
   }

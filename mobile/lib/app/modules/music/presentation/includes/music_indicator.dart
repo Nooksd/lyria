@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
@@ -47,6 +48,10 @@ class _MusicIndicatorState extends State<MusicIndicator> {
     cubit.previous();
   }
 
+  void _openMusicPage() {
+    context.push('/auth/music');
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -61,6 +66,7 @@ class _MusicIndicatorState extends State<MusicIndicator> {
           return Padding(
             padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
             child: GestureDetector(
+              onTap: _openMusicPage,
               onHorizontalDragUpdate: _onDragUpdate,
               onHorizontalDragEnd: _onDragEnd,
               child: AnimatedContainer(
@@ -118,7 +124,7 @@ class _MusicIndicatorState extends State<MusicIndicator> {
                                   color: Theme.of(context)
                                       .colorScheme
                                       .onPrimary
-                                      .withOpacity(0.6),
+                                      .withValues(alpha: 0.6),
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),

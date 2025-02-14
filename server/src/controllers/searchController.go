@@ -115,6 +115,7 @@ func GeneralSearch() gin.HandlerFunc {
 			musicData["coverUrl"] = musics[i]["album"].(bson.M)["albumCoverUrl"].(string)
 			musicData["artistName"] = musics[i]["artist"].(bson.M)["name"].(string)
 			musicData["albumName"] = musics[i]["album"].(bson.M)["name"].(string)
+			musicData["color"] = musics[i]["album"].(bson.M)["color"].(string)
 
 			results = append(results, bson.M{
 				"name":        musics[i]["name"],
