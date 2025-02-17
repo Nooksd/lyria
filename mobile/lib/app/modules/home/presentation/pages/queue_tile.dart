@@ -32,7 +32,7 @@ class _QueueTileState extends State<QueueTile> {
       if (_pageController.page != null && !_isAnimating) {
         int newIndex = _pageController.page!.round();
         if (cubit.currentIndex != newIndex) {
-          cubit.setIndex(newIndex);
+          cubit.skipToIndex(newIndex);
         }
       }
     });

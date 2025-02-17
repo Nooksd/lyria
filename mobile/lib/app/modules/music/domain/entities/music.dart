@@ -35,8 +35,6 @@ class Music extends Equatable {
   });
 
   factory Music.fromJson(Map<String, dynamic> json) {
-    print(json);
-
     return Music(
       id: json['_id'] as String,
       url: json['url'] as String,
@@ -57,8 +55,6 @@ class Music extends Equatable {
 
   @override
   List<Object?> get props => [id, url, name, artistId, artistName, albumId, albumName, waveform, genre, color, coverUrl, lyrics, createdAt, updatedAt];
-
-  String get audioUrl => url;
 
   Map<String, dynamic> toJson() {
     return {

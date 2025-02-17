@@ -87,15 +87,17 @@ class _SeekTileState extends State<SeekTile> {
 
                             return Container(
                               width: 2.5,
-                              height: 45 * (state.currentMusic.waveform[index] == 1 ? 1.0 : state.currentMusic.waveform[index] * 0.7),
+                              height: 45 *
+                                  (state.currentMusic.waveform[index] == 1
+                                      ? 1.0
+                                      : state.currentMusic.waveform[index] * 0.7),
                               color: isActualBar
                                   ? Theme.of(context).colorScheme.onSurface
                                   : Theme.of(context)
                                       .colorScheme
                                       .primary
                                       .withValues(
-                                        alpha:
-                                            isBeforeCurrentPosition ? 1.0 : 0.3,
+                                        alpha: isBeforeCurrentPosition ? 1.0 : 0.3,
                                       ),
                             );
                           },

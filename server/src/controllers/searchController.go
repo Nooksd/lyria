@@ -81,7 +81,7 @@ func GeneralSearch() gin.HandlerFunc {
 				"type":        "artist",
 				"id":          artists[i]["_id"],
 				"description": "Artista",
-				"imageUrl":    artists[i]["avatarUrl"],
+				"imageUrl":    os.Getenv("SERVER_URL") + artists[i]["avatarUrl"].(string),
 			})
 		}
 
@@ -114,7 +114,7 @@ func GeneralSearch() gin.HandlerFunc {
 				"type":        "album",
 				"id":          albums[i]["_id"],
 				"description": "Álbum · " + albums[i]["artist"].(bson.M)["name"].(string),
-				"imageUrl":    albums[i]["albumCoverUrl"],
+				"imageUrl":    os.Getenv("SERVER_URL") + albums[i]["albumCoverUrl"].(string),
 			})
 		}
 
@@ -152,10 +152,11 @@ func GeneralSearch() gin.HandlerFunc {
 		}
 		for i := range musics {
 			musicData := musics[i]
-			musicData["coverUrl"] = musics[i]["album"].(bson.M)["albumCoverUrl"].(string)
+			musicData["coverUrl"] = os.Getenv("SERVER_URL") + musics[i]["album"].(bson.M)["albumCoverUrl"].(string)
 			musicData["artistName"] = musics[i]["artist"].(bson.M)["name"].(string)
 			musicData["albumName"] = musics[i]["album"].(bson.M)["name"].(string)
 			musicData["color"] = musics[i]["album"].(bson.M)["color"].(string)
+			musicData["url"] = os.Getenv("SERVER_URL") + musics[i]["url"].(string)
 
 			lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", musics[i]["_id"].(primitive.ObjectID).Hex())
 
@@ -174,7 +175,7 @@ func GeneralSearch() gin.HandlerFunc {
 				"id":          musics[i]["_id"],
 				"description": "Música · " + musics[i]["artist"].(bson.M)["name"].(string),
 				"music":       musicData,
-				"imageUrl":    musics[i]["album"].(bson.M)["albumCoverUrl"].(string),
+				"imageUrl":    musicData["coverUrl"],
 			})
 		}
 

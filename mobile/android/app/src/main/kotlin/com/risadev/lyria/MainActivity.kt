@@ -1,4 +1,4 @@
-package com.example.app
+package com.risadev.lyria
 
 import io.flutter.embedding.android.FlutterActivity
 

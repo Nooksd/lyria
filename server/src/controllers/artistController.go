@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"net/http"
-	"os"
 	"time"
 
 	database "server/src/db"
@@ -46,7 +45,7 @@ func CreateArtist() gin.HandlerFunc {
 		}
 
 		artist.ID = primitive.NewObjectID()
-		artist.AvatarUrl = os.Getenv("SERVER_URL") + "/image/avatar/" + artist.ID.Hex()
+		artist.AvatarUrl = "/image/avatar/" + artist.ID.Hex()
 		artist.CreatedAt = time.Now()
 		artist.UpdatedAt = artist.CreatedAt
 

@@ -54,7 +54,7 @@ func CreateMusic() gin.HandlerFunc {
 		}
 
 		music.Waveform = waveForm
-		music.Url = os.Getenv("SERVER_URL") + "/stream/" + music.ID.Hex()
+		music.Url = "/stream/" + music.ID.Hex()
 		music.CreatedAt = time.Now()
 		music.UpdatedAt = music.CreatedAt
 

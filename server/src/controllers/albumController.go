@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"net/http"
-	"os"
 	"time"
 
 	database "server/src/db"
@@ -46,7 +45,7 @@ func CreateAlbum() gin.HandlerFunc {
 		}
 
 		album.ID = primitive.NewObjectID()
-		album.AlbumCoverUrl = os.Getenv("SERVER_URL") + "/image/cover/" + album.ID.Hex()
+		album.AlbumCoverUrl = "/image/cover/" + album.ID.Hex()
 		album.CreatedAt = time.Now()
 		album.UpdatedAt = album.CreatedAt
 
