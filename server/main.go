@@ -8,15 +8,22 @@ import (
 	websocketmanager "server/src/websocket"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if os.Getenv("ENVIRONMENT") != "production" {
+		err := godotenv.Load()
+		if err != nil {
+			log.Println("Warning: .env file not found. Falling back to environment variables.")
+		}
+	}
+
 	port := os.Getenv("PORT")
 
 	if port == "" {
 		port = "8080"
 	}
-
 	router := gin.New()
 	router.Use(gin.Logger())
 

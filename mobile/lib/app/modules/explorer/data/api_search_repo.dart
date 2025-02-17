@@ -39,6 +39,7 @@ class ApiSearchRepo implements SearchRepo {
   @override
   Future<void> updateHistory(List<Search> history) async {
     final String jsonString = jsonEncode(history.map((e) => e.toJson()).toList());
+    
     await storage.set('search_history', jsonString);
   }
 }

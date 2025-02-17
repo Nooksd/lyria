@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:lyria/app/modules/music/domain/entities/lyrics.dart';
 
 class Music extends Equatable {
   final String id;
@@ -12,7 +13,7 @@ class Music extends Equatable {
   final String genre;
   final String color;
   final String coverUrl;
-  final String? lyrics;
+  final List<LyricLine>? lyrics;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -34,6 +35,8 @@ class Music extends Equatable {
   });
 
   factory Music.fromJson(Map<String, dynamic> json) {
+    print(json);
+
     return Music(
       id: json['_id'] as String,
       url: json['url'] as String,
@@ -46,7 +49,7 @@ class Music extends Equatable {
       genre: json['genre'] as String,
       color: json['color'] as String,
       coverUrl: json['coverUrl'] as String,
-      lyrics: json['lyrics'] as String?,
+      lyrics: json['lyrics'] != null ? (json['lyrics'] as List).map((e) => LyricLine.fromJson(e)).toList() : null,
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
@@ -70,7 +73,7 @@ class Music extends Equatable {
       'genre': genre,
       'color': color,
       'coverUrl': coverUrl,
-      'lyrics': lyrics,
+      'lyrics': lyrics?.map((l) => l.toJson()).toList(),
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };

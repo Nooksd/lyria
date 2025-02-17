@@ -7,6 +7,7 @@ import 'package:lyria/app/modules/assets/custom_container.dart';
 import 'package:lyria/app/modules/assets/seek_tile.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
+import 'package:lyria/app/modules/music/presentation/includes/lyrics_tile.dart';
 
 class MusicPage extends StatefulWidget {
   const MusicPage({super.key});
@@ -17,6 +18,8 @@ class MusicPage extends StatefulWidget {
 
 class _MusicPageState extends State<MusicPage> {
   final MusicCubit cubit = getIt<MusicCubit>();
+  var _isLyricsExpanded = false;
+  final ScrollController _lyricsScrollController = ScrollController();
 
   void _onPlayPause() {
     cubit.playPause();
@@ -55,6 +58,12 @@ class _MusicPageState extends State<MusicPage> {
     }
   }
 
+  void _openLyrics() {
+    setState(() {
+      _isLyricsExpanded = !_isLyricsExpanded;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -68,11 +77,32 @@ class _MusicPageState extends State<MusicPage> {
         }
       },
       builder: (context, state) {
+        if (_isLyricsExpanded && state is MusicPlaying) {
+          return Scaffold(
+            body: SizedBox(
+              width: screenWidth,
+              height: screenHeight,
+              child: LyricsTile(
+                lyrics: state.currentMusic.lyrics,
+                positionStream: cubit.positionStream,
+                scrollController: _lyricsScrollController,
+                close: () {
+                  setState(() {
+                    _isLyricsExpanded = false;
+                  });
+                },
+                isFullScreen: true,
+              ),
+            ),
+          );
+        }
+
         if (state is MusicPlaying) {
           final music = state.currentMusic;
           final isPlaying = state.isPlaying;
           final isLoop = state.isLoop;
           final isShuffle = state.isShuffle;
+          final lyrics = music.lyrics;
 
           return Scaffold(
             body: CustomContainer(
@@ -80,7 +110,7 @@ class _MusicPageState extends State<MusicPage> {
               height: screenHeight,
               child: SafeArea(
                 child: SingleChildScrollView(
-                  physics: music.lyrics != null
+                  physics: lyrics != null
                       ? const ClampingScrollPhysics()
                       : const NeverScrollableScrollPhysics(),
                   child: Column(
@@ -383,42 +413,12 @@ class _MusicPageState extends State<MusicPage> {
                           child: Column(
                             children: [
                               SizedBox(
-                                height: 20,
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      "Letras",
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .onSurface,
-                                      ),
-                                    ),
-                                    GestureDetector(
-                                      onTap: () {},
-                                      child: Container(
-                                        width: 25,
-                                        height: 25,
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(100),
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onPrimary,
-                                        ),
-                                        child: Icon(
-                                          CustomIcons.expand,
-                                          size: 16,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                height: 300,
+                                child: LyricsTile(
+                                  lyrics: state.currentMusic.lyrics,
+                                  positionStream: cubit.positionStream,
+                                  scrollController: _lyricsScrollController,
+                                  close: _openLyrics,
                                 ),
                               ),
                             ],
@@ -435,5 +435,11 @@ class _MusicPageState extends State<MusicPage> {
         return Container();
       },
     );
+  }
+
+  @override
+  void dispose() {
+    _lyricsScrollController.dispose();
+    super.dispose();
   }
 }

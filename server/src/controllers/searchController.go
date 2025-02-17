@@ -1,14 +1,54 @@
 package controllers
 
 import (
+	"bufio"
 	"context"
+	"fmt"
 	"net/http"
+	"os"
+	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+type LyricLine struct {
+	Time    string `json:"time"`
+	Content string `json:"content"`
+}
+
+func parseLRC(filePath string) ([]LyricLine, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao abrir arquivo: %v", err)
+	}
+	defer file.Close()
+
+	var lyrics []LyricLine
+	scanner := bufio.NewScanner(file)
+
+	lyricLinePattern := regexp.MustCompile(`\[(\d{2}:\d{2}\.\d{2,3})\](.*)`)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if matches := lyricLinePattern.FindStringSubmatch(line); matches != nil {
+			lyrics = append(lyrics, LyricLine{
+				Time:    matches[1],
+				Content: strings.TrimSpace(matches[2]),
+			})
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("erro na leitura do arquivo: %v", err)
+	}
+
+	return lyrics, nil
+}
 
 func GeneralSearch() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -116,6 +156,17 @@ func GeneralSearch() gin.HandlerFunc {
 			musicData["artistName"] = musics[i]["artist"].(bson.M)["name"].(string)
 			musicData["albumName"] = musics[i]["album"].(bson.M)["name"].(string)
 			musicData["color"] = musics[i]["album"].(bson.M)["color"].(string)
+
+			lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", musics[i]["_id"].(primitive.ObjectID).Hex())
+
+			if _, err := os.Stat(lyricsPath); err == nil {
+				lyrics, err := parseLRC(lyricsPath)
+				if err != nil {
+					fmt.Println("Erro ao ler o arquivo LRC:", err)
+				} else {
+					musicData["lyrics"] = lyrics
+				}
+			}
 
 			results = append(results, bson.M{
 				"name":        musics[i]["name"],

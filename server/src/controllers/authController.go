@@ -100,7 +100,6 @@ func RefreshToken() gin.HandlerFunc {
 		token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
 			return []byte(os.Getenv("SECRET_KEY")), nil
 		})
-
 		if err != nil || !token.Valid {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Token inválido"})
 			return
