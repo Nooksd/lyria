@@ -1,93 +1,119 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:lyria/app/core/services/music/music_service.dart';
 import 'package:lyria/app/core/themes/theme_cubit.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
+import 'package:lyria/app/core/services/music/music_service.dart';
 
 class MusicCubit extends Cubit<MusicState> {
   final ThemeCubit themeCubit;
-  final MusicService _musicService;
+  final AudioHandler _audioHandler;
 
-  MusicCubit(this.themeCubit, this._musicService) : super(MusicInitial()) {
+  MusicCubit(this.themeCubit, this._audioHandler) : super(MusicInitial()) {
     _setupAudioListeners();
   }
 
-  List<Music> get queue => _musicService.actualQueue;
-  int get currentIndex => _musicService.currentIndex;
-  bool get isLoop => _musicService.isLoop;
-  bool get isShuffle => _musicService.isShuffle;
+  MusicService get _musicService => _audioHandler as MusicService;
 
-  Stream<Duration> get positionStream => _musicService.rawPositionStream;
-  Stream<Duration?> get durationStream =>
-      _musicService.mediaItem.map((item) => item?.duration);
-  Duration? get duration => _musicService.mediaItem.value?.duration;
-  Duration get position => _musicService.playbackState.value.position;
+  int get currentIndex =>
+      state is MusicPlaying ? (state as MusicPlaying).currentIndex : 0;
+
+  Stream<Duration> get positionStream =>
+      playbackStateStream.map((state) => state.updatePosition);
+
+  Stream<Duration> get durationStream =>
+      _audioHandler.mediaItem.map((item) => item?.duration ?? Duration.zero);
+
+  Duration get duration =>
+      _audioHandler.mediaItem.value?.duration ?? Duration.zero;
+
+  Stream<PlaybackState> get playbackStateStream =>
+      _audioHandler.playbackState;
+
+  List<MediaItem> get queue => _audioHandler.queue.value;
 
   void _setupAudioListeners() {
-    _musicService.playbackState.listen((state) {
+    _audioHandler.playbackState.listen((state) {
       _updatePlaybackState(state);
     });
-
-    _musicService.mediaItem.listen((mediaItem) {
+    _audioHandler.mediaItem.listen((mediaItem) {
       if (mediaItem != null) {
         _updateCurrentMusic(mediaItem);
-        _updatePlaybackState(_musicService.playbackState.value);
+        _updatePlaybackState(_audioHandler.playbackState.value);
       }
     });
   }
 
-  Future<void> setQueue(List<Music> queue, int currentIndex) async =>
-      _musicService.setQueue(queue, currentIndex);
+  Future<void> setQueue(List<Music> queue, int currentIndex) async {
+    await _musicService.setQueue(queue, currentIndex);
+  }
 
   Future<void> addToQueue(Music music) async {
     await _musicService.addToQueue(music);
-    if (_musicService.actualQueue.length == 1) {
-      await _musicService.play();
+    if (_audioHandler.queue.value.length == 1) {
+      await _audioHandler.play();
     }
   }
 
-  void playPause() {
-    if (_musicService.playbackState.value.playing) {
-      _musicService.pause();
+  Future<void> removeFromQueue(int index) async {
+    await _musicService.removeFromQueue(index);
+  }
+
+  Future<void> clearQueue() async {
+    await _musicService.clearQueue();
+  }
+
+  Future<void> playPause() async {
+    if (_audioHandler.playbackState.value.playing) {
+      await _audioHandler.pause();
     } else {
-      _musicService.play();
+      await _audioHandler.play();
     }
   }
 
-  Future<void> next() async => _musicService.skipToNext();
+  Future<void> toggleLoop() async {
+    await _musicService.toggleLoop();
+  }
 
-  Future<void> previous() async => _musicService.skipToPrevious();
+  Future<void> toggleShuffle() async {
+    await _musicService.toggleShuffle();
+  }
 
-  void toggleLoop() => _musicService.toggleLoop();
+  Future<void> next() async => await _audioHandler.skipToNext();
 
-  void toggleShuffle() => _musicService.toggleShuffle();
+  Future<void> previous() async => await _audioHandler.skipToPrevious();
 
-  Future<void> seekTo(Duration position) async => _musicService.seek(position);
+  Future<void> skipToIndex(int index) async {
+    await _audioHandler.skipToQueueItem(index);
+  }
 
-  Future<void> removeFromQueue(Music music) async =>
-      _musicService.removeFromQueue(music);
-
-  Future<void> clearQueue() async => _musicService.clearQueue();
-
-  Future<void> skipToIndex(int index) async =>
-      _musicService.skipToQueueItem(index);
+  Future<void> seekTo(Duration position) async =>
+      await _audioHandler.seek(position);
 
   Future<void> stop() async {
-    await _musicService.stop();
+    await _audioHandler.stop();
     themeCubit.updatePrimaryColor(Colors.white);
     emit(MusicStopped());
   }
 
-    void _updatePlaybackState(PlaybackState state) {
-    if (_musicService.actualQueue.isEmpty) return;
+  void _updatePlaybackState(PlaybackState state) {
+    final mediaQueue = _audioHandler.queue.value;
+    if (mediaQueue.isEmpty) return;
+    final List<Music> musicQueue = mediaQueue
+        .map((item) => _musicService.musicFromMediaItem(item))
+        .toList();
 
+    final currentMediaItem = _audioHandler.mediaItem.value;
+    if (currentMediaItem == null) return;
+    final Music currentMusic = _musicService.musicFromMediaItem(currentMediaItem);
+    final currentIdx =
+        musicQueue.indexWhere((item) => item.id == currentMediaItem.id);
     emit(MusicPlaying(
-      currentMusic: _musicService.actualQueue[_musicService.currentIndex],
-      queue: _musicService.actualQueue,
+      currentMusic: currentMusic,
+      queue: musicQueue,
       isPlaying: state.playing,
-      currentIndex: _musicService.currentIndex,
+      currentIndex: currentIdx < 0 ? 0 : currentIdx,
       isLoop: _musicService.isLoop,
       isShuffle: _musicService.isShuffle,
     ));

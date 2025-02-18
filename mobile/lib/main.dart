@@ -25,10 +25,12 @@ Future<void> main() async {
   final audioHandler = await AudioService.init(
     builder: () => MusicService(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'com.risadev.lyria',
-      androidNotificationChannelName: 'Reprodução de Áudio',
+      androidNotificationChannelId: 'com.risadev.lyria.channel.audio',
+      androidNotificationChannelName: 'music_player',
+      androidNotificationIcon: 'drawable/ic_notification',
       androidNotificationOngoing: true,
-      androidNotificationIcon: 'mipmap/ic_launcher',
+      androidShowNotificationBadge: true,
+      notificationColor: Color(0xFF171717),
     ),
   );
 

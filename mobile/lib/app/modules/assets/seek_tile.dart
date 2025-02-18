@@ -37,7 +37,7 @@ class _SeekTileState extends State<SeekTile> {
             },
             onHorizontalDragEnd: (details) {
               if (state.currentMusic.waveform.isNotEmpty) {
-                final totalDuration = cubit.duration?.inMilliseconds ?? 0;
+                final totalDuration = cubit.duration.inMilliseconds;
                 final finalPercentage = _localPercentage ?? 0.0;
                 final newPosition = Duration(
                     milliseconds: (totalDuration * finalPercentage).toInt());
@@ -61,7 +61,7 @@ class _SeekTileState extends State<SeekTile> {
                     builder: (context, snapshot) {
                       final currentPosition =
                           snapshot.data?.inMilliseconds ?? 0;
-                      final totalDuration = cubit.duration?.inMilliseconds ?? 0;
+                      final totalDuration = cubit.duration.inMilliseconds;
                       final progressPercentage = _localPercentage ??
                           (totalDuration > 0
                               ? currentPosition / totalDuration
@@ -90,14 +90,16 @@ class _SeekTileState extends State<SeekTile> {
                               height: 45 *
                                   (state.currentMusic.waveform[index] == 1
                                       ? 1.0
-                                      : state.currentMusic.waveform[index] * 0.7),
+                                      : state.currentMusic.waveform[index] *
+                                          0.7),
                               color: isActualBar
                                   ? Theme.of(context).colorScheme.onSurface
                                   : Theme.of(context)
                                       .colorScheme
                                       .primary
                                       .withValues(
-                                        alpha: isBeforeCurrentPosition ? 1.0 : 0.3,
+                                        alpha:
+                                            isBeforeCurrentPosition ? 1.0 : 0.3,
                                       ),
                             );
                           },

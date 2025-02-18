@@ -1,23 +1,50 @@
-import 'dart:math';
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 
 class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final ConcatenatingAudioSource _playlist =
+      ConcatenatingAudioSource(children: []);
 
-  List<Music> _queue = [];
-  int _currentIndex = 0;
   bool _isLoop = false;
   bool _isShuffle = false;
-
-  List<Music> get actualQueue => _queue;
-  int get currentIndex => _currentIndex;
   bool get isLoop => _isLoop;
   bool get isShuffle => _isShuffle;
-  Stream<Duration> get rawPositionStream => _audioPlayer.positionStream;
 
   MusicService() {
+    _init();
+  }
+
+  Future<void> _init() async {
+    loadEmptyPlaylist();
+    await _audioPlayer.setAudioSource(_playlist);
+    _setupPlaybackListeners();
+  }
+
+  Future<void> loadEmptyPlaylist() async {
+    try {
+      await _audioPlayer.setAudioSource(_playlist);
+    } catch (e) {
+      print("Error: $e");
+    }
+  }
+
+  void _setupPlaybackListeners() {
+    _audioPlayer.sequenceStateStream.listen((sequenceState) {
+      if (sequenceState == null) return;
+      final newQueue = sequenceState.sequence
+          .map((source) => source.tag as MediaItem)
+          .toList();
+      updateQueue(newQueue);
+
+      final currentItem = sequenceState.currentSource?.tag as MediaItem?;
+      if (currentItem != null) {
+        mediaItem.add(currentItem);
+      }
+    });
+
     _audioPlayer.playbackEventStream.listen((event) {
       final playing = _audioPlayer.playing;
       final processingState = _audioPlayer.processingState;
@@ -39,16 +66,10 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
       );
     });
 
-    _audioPlayer.playerStateStream.listen((playerState) {
-      if (playerState.processingState == ProcessingState.completed) {
-        _onSongComplete();
-      }
-    });
-
     _audioPlayer.durationStream.listen((duration) {
-      final currentItem = mediaItem.value;
-      if (currentItem != null && duration != null) {
-        mediaItem.add(currentItem.copyWith(duration: duration));
+      final current = mediaItem.value;
+      if (current != null && duration != null) {
+        mediaItem.add(current.copyWith(duration: duration));
       }
     });
   }
@@ -70,100 +91,103 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  MediaItem convertMusicToMediaItem(Music music) {
+    return MediaItem(
+      id: music.id,
+      album: music.albumName,
+      title: music.name,
+      artist: music.artistName,
+      artUri: Uri.parse(music.coverUrl),
+      duration: const Duration(minutes: 5),
+      extras: {
+        'url': music.url,
+        'color': music.color,
+        'waveform': music.waveform,
+        'lyrics': music.lyrics ?? [],
+        'artistId': music.artistId,
+        'albumId': music.albumId,
+        'genre': music.genre,
+      },
+      displayTitle: music.name,
+      displaySubtitle: music.artistName,
+      displayDescription: music.albumName,
+    );
+  }
+
+  Music musicFromMediaItem(MediaItem item) {
+    return Music(
+      id: item.id,
+      url: item.extras?['url'] ?? '',
+      name: item.title,
+      artistId: item.extras?['artistId'] ?? '',
+      artistName: item.artist ?? '',
+      albumId: item.extras?['albumId'] ?? '',
+      albumName: item.album ?? '',
+      waveform: item.extras?['waveform'] != null
+          ? List<double>.from(item.extras!['waveform'])
+          : [],
+      genre: item.extras?['genre'] ?? '',
+      color: item.extras?['color'] ?? '#FFFFFF',
+      coverUrl: item.artUri.toString(),
+      lyrics: item.extras?['lyrics'] ?? [],
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+  }
+
   Future<void> setQueue(List<Music> queue, int currentIndex) async {
-    _queue = queue;
-    _currentIndex = currentIndex;
-    final mediaItems = _queue.map((music) => _convertMusicToMediaItem(music)).toList();
-    updateQueue(mediaItems);
-    await _playCurrent();
+    await _playlist.clear();
+    for (final music in queue) {
+      await _playlist.add(_createAudioSource(music));
+    }
+    await _audioPlayer.setAudioSource(_playlist, initialIndex: currentIndex);
+
+    if (queue.isNotEmpty) {
+      final firstItem = convertMusicToMediaItem(queue[currentIndex]);
+      mediaItem.add(firstItem);
+      print("Forçando atualização da música atual: ${firstItem.title}");
+    }
+  }
+
+  AudioSource _createAudioSource(Music music) {
+    return AudioSource.uri(
+      Uri.parse(music.url),
+      tag: convertMusicToMediaItem(music),
+    );
   }
 
   Future<void> addToQueue(Music music) async {
-    _queue.add(music);
-    final newItem = _convertMusicToMediaItem(music);
-    final updatedQueue = List<MediaItem>.from(queue.value)..add(newItem);
-    updateQueue(updatedQueue);
-    if (_queue.length == 1) {
-      _currentIndex = 0;
-      await _playCurrent();
-    }
+    await _playlist.add(_createAudioSource(music));
   }
 
-  Future<void> removeFromQueue(Music music) async {
-    int index = _queue.indexWhere((m) => m.id == music.id);
-    if (index != -1) {
-      _queue.removeAt(index);
-      final updatedQueue = _queue.map((m) => _convertMusicToMediaItem(m)).toList();
-      updateQueue(updatedQueue);
-      if (_currentIndex >= _queue.length) {
-        _currentIndex = _queue.length - 1;
-      }
-      await _playCurrent();
-    }
+  Future<void> removeFromQueue(int index) async {
+    if (index < 0 || index >= _playlist.children.length) return;
+    await _playlist.removeAt(index);
+  }
+
+  Future<void> toggleLoop() async {
+    _isLoop = !_isLoop;
+    await _audioPlayer.setLoopMode(_isLoop ? LoopMode.all : LoopMode.off);
+  }
+
+  Future<void> toggleShuffle() async {
+    _isShuffle = !_isShuffle;
+    await _audioPlayer.setShuffleModeEnabled(_isShuffle);
   }
 
   Future<void> clearQueue() async {
-    _queue.clear();
-    _currentIndex = 0;
-    updateQueue([]);
-    await _playCurrent();
-  }
-
-  @override
-  Future<void> skipToQueueItem(int index) async {
-    _currentIndex = index;
-    await _playCurrent();
-  }
-
-  Future<void> _playCurrent() async {
-    if (_queue.isEmpty) {
-      stop();
-      return;
-    }
-    final currentMusic = _queue[_currentIndex];
-    mediaItem.add(_convertMusicToMediaItem(currentMusic));
-    try {
-      await _audioPlayer.setUrl(currentMusic.url);
-      _audioPlayer.play();
-    } catch (e) {
-      // TODO: tratar erro
-    }
-  }
-
-  @override
-  Future<void> play() async {
-    _audioPlayer.play();
-  }
-
-  @override
-  Future<void> pause() async {
-    _audioPlayer.pause();
+    await _playlist.clear();
+    await stop();
   }
 
   @override
   Future<void> skipToNext() async {
-    if (_queue.isEmpty || _queue.length == _currentIndex + 1) {
-      return;
-    }
-    if (_isLoop) {
-      await _playCurrent();
-    } else if (_currentIndex < _queue.length - 1) {
-      _currentIndex++;
-      await _playCurrent();
-    } else {
-      stop();
-    }
+    await _audioPlayer.seekToNext();
   }
 
   @override
   Future<void> skipToPrevious() async {
-    if (_queue.isEmpty || _currentIndex == 0) return;
-    if (_currentIndex > 0) {
-      _currentIndex--;
-      await _playCurrent();
-    } else {
-      await _playCurrent();
-    }
+    await _audioPlayer.seekToPrevious();
   }
 
   @override
@@ -171,67 +195,31 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _audioPlayer.seek(position);
   }
 
-  Future<void> toggleLoop() async {
-    _isLoop = !_isLoop;
+  @override
+  Future<void> play() async {
+    await _audioPlayer.play();
   }
 
-  Future<void> toggleShuffle() async {
-    _isShuffle = !_isShuffle;
-    if (_isShuffle) {
-      List<Music> tempQueue = _queue.sublist(_currentIndex + 1);
-      tempQueue.shuffle(Random());
-      _queue = _queue.sublist(0, _currentIndex + 1) + tempQueue;
-      updateQueue(_queue.map((m) => _convertMusicToMediaItem(m)).toList());
-    }
-  }
-
-  void _onSongComplete() async {
-    if (_queue.isEmpty) return;
-
-    if (_isLoop) {
-      await _playCurrent();
-      return;
-    }
-
-    if (_isShuffle) {
-      List<Music> nextSongs = _queue.sublist(_currentIndex + 1);
-      nextSongs.shuffle(Random());
-      _queue = _queue.sublist(0, _currentIndex + 1) + nextSongs;
-      updateQueue(_queue.map((m) => _convertMusicToMediaItem(m)).toList());
-    }
-
-    if (_currentIndex < _queue.length - 1) {
-      _currentIndex++;
-      await _playCurrent();
-    } else {
-      _currentIndex = 0;
-      await _playCurrent();
-      pause();
-    }
+  @override
+  Future<void> pause() async {
+    await _audioPlayer.pause();
   }
 
   @override
   Future<void> stop() async {
     await _audioPlayer.stop();
-    _queue.clear();
-    _currentIndex = 0;
-    _isLoop = false;
-    _isShuffle = false;
-    updateQueue([]);
+    await _playlist.clear();
     return super.stop();
   }
 
-  MediaItem _convertMusicToMediaItem(Music music) {
-    return MediaItem(
-      id: music.id,
-      album: music.albumName,
-      title: music.name,
-      artist: music.artistName,
-      artUri: Uri.parse(music.coverUrl),
-      extras: {
-        'url': music.url,
-        'color': music.color,
-      },
-    );
+  @override
+  Future<void> onNotificationDeleted() async {
+    final isForeground =
+        WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+    if (isForeground) {
+      playbackState.add(playbackState.value);
+    } else {
+      await stop();
+    }
   }
 }

@@ -1,9 +1,9 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:lyria/app/app_router.dart';
-import 'package:lyria/app/core/services/music/music_service.dart';
 import 'package:lyria/app/core/themes/theme_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
@@ -31,7 +31,7 @@ class AppWidget extends StatelessWidget {
           create: (context) => ThemeCubit(),
         ),
         BlocProvider<MusicCubit>(
-          create: (context) => MusicCubit(context.read<ThemeCubit>(), context.read<MusicService>()),
+          create: (context) => MusicCubit(context.read<ThemeCubit>(), context.read<AudioHandler>()),
         ),
       ],
       child: BlocProvider<ThemeCubit>(

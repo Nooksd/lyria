@@ -2,7 +2,6 @@ import 'package:audio_service/audio_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:lyria/app/core/services/http/dio_client.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
-import 'package:lyria/app/core/services/music/music_service.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/core/services/storege/shared_preferences_client.dart';
 import 'package:lyria/app/core/themes/theme_cubit.dart';
@@ -20,7 +19,7 @@ Future<void> setupLocator(AudioHandler audioHandler) async {
   getIt.registerSingleton<MyHttpClient>(
     DioClient(storage: getIt<MyLocalStorage>()),
   );
-  getIt.registerSingleton<MusicService>(MusicService());
+  getIt.registerSingleton<AudioHandler>(audioHandler);
 
   // Repositórios
   getIt.registerLazySingleton(() => ApiAuthRepo(
@@ -43,6 +42,6 @@ Future<void> setupLocator(AudioHandler audioHandler) async {
     SearchCubit(searchRepo: getIt<ApiSearchRepo>()),
   );
   getIt.registerSingleton<MusicCubit>(
-    MusicCubit(getIt<ThemeCubit>(), getIt<MusicService>()),
+    MusicCubit(getIt<ThemeCubit>(), getIt<AudioHandler>()),
   );
 }
