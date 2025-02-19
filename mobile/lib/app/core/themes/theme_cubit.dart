@@ -26,6 +26,7 @@ class ThemeCubit extends Cubit<ThemeData> {
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: Colors.white,
+      behavior: SnackBarBehavior.floating,
       contentTextStyle: const TextStyle(
         color: Color(0xFF171717),
       ),

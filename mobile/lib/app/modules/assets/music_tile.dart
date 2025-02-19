@@ -5,7 +5,7 @@ class MusicTile extends StatelessWidget {
   final bool isRound;
   final String title;
   final String subtitle;
-  final Widget trailing;
+  final Widget? trailing;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 

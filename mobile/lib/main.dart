@@ -30,6 +30,7 @@ Future<void> main() async {
       androidNotificationIcon: 'drawable/ic_notification',
       androidNotificationOngoing: true,
       androidShowNotificationBadge: true,
+      androidStopForegroundOnPause: true,
       notificationColor: Color(0xFF171717),
     ),
   );

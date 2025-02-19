@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/assets/music_tile.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/modal_factory.dart';
 import 'package:lyria/app/modules/explorer/domain/entities/search.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 
@@ -20,14 +21,6 @@ class SearchInclude extends StatelessWidget {
     this.isHistory = false,
     required this.addToHistory,
   });
-
-  Future<void> _addToQueue(Search search) async {
-    addToHistory(search);
-
-    if (search.music != null && search.music!.url != '') {
-      await cubit.addToQueue(search.music!);
-    }
-  }
 
   Future<void> _onTap(Search search) async {
     addToHistory(search);
@@ -48,35 +41,8 @@ class SearchInclude extends StatelessWidget {
   }
 
   void _showMoreOptions(BuildContext context, Search search) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-      useRootNavigator: true,
-      builder: (context) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: Icon(CustomIcons.plus),
-              title: Text('Adicionar a fila'),
-              onTap: () {
-                _addToQueue(search);
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: Icon(CustomIcons.play),
-              title: Text('Tocar música'),
-              onTap: () {
-                _onTap(search);
-                Navigator.pop(context);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+    final modal = createModal(search);
+    modal.show(context);
   }
 
   @override

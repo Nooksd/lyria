@@ -10,7 +10,7 @@ class DioClient implements MyHttpClient {
   MyLocalStorage storage;
 
   DioClient({required this.storage}) {
-    dio.options.baseUrl = 'http://192.168.1.211:9000';
+    dio.options.baseUrl = 'http://192.168.1.55:9000';
 
     dio.options.validateStatus = (status) {
       return status != null && status >= 200 && status < 300;

@@ -15,25 +15,23 @@ class MusicCubit extends Cubit<MusicState> {
   }
 
   MusicService get _musicService => _audioHandler as MusicService;
-
   int get currentIndex =>
       state is MusicPlaying ? (state as MusicPlaying).currentIndex : 0;
-
   Stream<Duration> get positionStream =>
-      playbackStateStream.map((state) => state.updatePosition);
-
-  Stream<Duration> get durationStream =>
-      _audioHandler.mediaItem.map((item) => item?.duration ?? Duration.zero);
-
+      (_audioHandler as MusicService).positionStream;
+  Stream<Duration> get durationStream => _audioHandler.mediaItem
+      .map((item) => item?.duration ?? Duration.zero)
+      .distinct();
   Duration get duration =>
       _audioHandler.mediaItem.value?.duration ?? Duration.zero;
-
-  Stream<PlaybackState> get playbackStateStream =>
-      _audioHandler.playbackState;
-
+  Stream<PlaybackState> get playbackStateStream => _audioHandler.playbackState;
   List<MediaItem> get queue => _audioHandler.queue.value;
 
   void _setupAudioListeners() {
+    (_audioHandler as MusicService).notificationDeleted.listen((_) async {
+      await stop();
+    });
+
     _audioHandler.playbackState.listen((state) {
       _updatePlaybackState(state);
     });
@@ -92,23 +90,38 @@ class MusicCubit extends Cubit<MusicState> {
       await _audioHandler.seek(position);
 
   Future<void> stop() async {
-    await _audioHandler.stop();
-    themeCubit.updatePrimaryColor(Colors.white);
-    emit(MusicStopped());
+    try {
+      await _audioHandler.stop();
+      themeCubit.updatePrimaryColor(Colors.white);
+      emit(MusicStopped());
+    } catch (e) {
+      debugPrint('Erro ao parar música: $e');
+    }
   }
 
   void _updatePlaybackState(PlaybackState state) {
+    if (state.processingState == AudioProcessingState.idle &&
+        _audioHandler.mediaItem.value == null) {
+      emit(MusicStopped());
+      return;
+    }
+
     final mediaQueue = _audioHandler.queue.value;
-    if (mediaQueue.isEmpty) return;
+    if (mediaQueue.isEmpty) {
+      emit(MusicStopped());
+      return;
+    }
     final List<Music> musicQueue = mediaQueue
         .map((item) => _musicService.musicFromMediaItem(item))
         .toList();
 
     final currentMediaItem = _audioHandler.mediaItem.value;
     if (currentMediaItem == null) return;
-    final Music currentMusic = _musicService.musicFromMediaItem(currentMediaItem);
+    final Music currentMusic =
+        _musicService.musicFromMediaItem(currentMediaItem);
     final currentIdx =
         musicQueue.indexWhere((item) => item.id == currentMediaItem.id);
+
     emit(MusicPlaying(
       currentMusic: currentMusic,
       queue: musicQueue,

@@ -106,7 +106,7 @@ class AppRouter {
           ),
           GoRoute(
             path: '/auth/ui/library',
-            pageBuilder: (context, state) => const NoTransitionPage(
+            pageBuilder: (context, state) => NoTransitionPage(
               child: LibraryPage(),
             ),
           ),

@@ -52,9 +52,9 @@ class _MusicPageState extends State<MusicPage> {
 
   void _onDragEnd(DragEndDetails details) {
     if (details.velocity.pixelsPerSecond.dx > 1000) {
-      cubit.next();
-    } else if (details.velocity.pixelsPerSecond.dx < -1000) {
       cubit.previous();
+    } else if (details.velocity.pixelsPerSecond.dx < -1000) {
+      cubit.next();
     }
   }
 
