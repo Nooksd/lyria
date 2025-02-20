@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
-import 'package:lyria/app/modules/assets/music_tile.dart';
+import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/bottom_sheet_options/page/modal_factory.dart';
 import 'package:lyria/app/modules/explorer/domain/entities/search.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';

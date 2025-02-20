@@ -21,7 +21,7 @@ class CreateMusicJamTile extends StatelessWidget {
                 ),
                 onPressed: () {},
                 child: Icon(
-                  CustomIcons.plus,
+                  CustomIcons.plus_thick,
                   size: 30,
                   color: Theme.of(context).colorScheme.onPrimary,
                 ),

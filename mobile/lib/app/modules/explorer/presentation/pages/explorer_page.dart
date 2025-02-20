@@ -3,8 +3,8 @@ import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/explorer/domain/entities/search.dart';
 import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
-import 'package:lyria/app/modules/explorer/presentation/pages/category_include.dart';
-import 'package:lyria/app/modules/explorer/presentation/pages/search_include.dart';
+import 'package:lyria/app/modules/explorer/presentation/includes/category_include.dart';
+import 'package:lyria/app/modules/explorer/presentation/includes/search_include.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
 
 class ExplorerPage extends StatefulWidget {
@@ -137,7 +137,11 @@ class _ExplorerPageState extends State<ExplorerPage> {
             ),
             SizedBox(height: 40),
             Text(
-              isSearchFocused ? isHistory ? 'Buscas recentes' : 'Resultados' : 'Gêneros',
+              isSearchFocused
+                  ? isHistory
+                      ? 'Buscas recentes'
+                      : 'Resultados'
+                  : 'Gêneros',
               style: TextStyle(
                 fontSize: 20,
               ),

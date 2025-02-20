@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lyria/app/modules/assets/custom_container.dart';
+import 'package:lyria/app/modules/common/custom_container.dart';
 
 class GenreTile extends StatelessWidget {
   final double width;

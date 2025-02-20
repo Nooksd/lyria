@@ -4,11 +4,14 @@ class CustomContainer extends StatelessWidget {
   final Widget child;
   final double width;
   final double height;
+  final double? borderRadius;
+
   const CustomContainer({
     super.key,
     required this.child,
     this.width = 100,
     this.height = 100,
+    this.borderRadius = 25,
   });
 
   @override
@@ -26,7 +29,7 @@ class CustomContainer extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(25),
+        borderRadius: BorderRadius.circular(borderRadius!),
       ),
       child: child,
     );

@@ -2,14 +2,18 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:get_it/get_it.dart';
 import 'package:lyria/app/core/custom/splash.dart';
+import 'package:lyria/app/modules/album/presentation/pages/album_page.dart';
+import 'package:lyria/app/modules/artist/presentation/pages/artist_page.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/pages/decide_page.dart';
 import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
 import 'package:lyria/app/modules/explorer/presentation/pages/explorer_page.dart';
 import 'package:lyria/app/modules/home/presentation/pages/home_page.dart';
+import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 import 'package:lyria/app/modules/library/presentation/pages/library_page.dart';
+import 'package:lyria/app/modules/library/presentation/pages/playlist_page.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
-import 'package:lyria/app/modules/music/presentation/includes/music_page.dart';
+import 'package:lyria/app/modules/music/presentation/pages/music_page.dart';
 import 'package:lyria/app/modules/ui/includes/navigator_page.dart';
 import 'package:flutter/material.dart';
 
@@ -107,7 +111,28 @@ class AppRouter {
           GoRoute(
             path: '/auth/ui/library',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: LibraryPage(),
+              child: BlocProvider.value(
+                value: getIt<PlaylistCubit>(),
+                child: LibraryPage(),
+              ),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/album',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: AlbumPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/artist',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: ArtistPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/playlist',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: PlaylistPage(),
             ),
           ),
         ],

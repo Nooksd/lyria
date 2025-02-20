@@ -18,7 +18,7 @@ class CustomIcons {
   static const IconData x = IconData(0xe807, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData loop = IconData(0xe808, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData play = IconData(0xe809, fontFamily: _kFontFam, fontPackage: _kFontPkg);
-  static const IconData plus = IconData(0xe80a, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData plus_thick = IconData(0xe80a, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData profile = IconData(0xe80b, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData return_icon = IconData(0xe80c, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData search = IconData(0xe80d, fontFamily: _kFontFam, fontPackage: _kFontPkg);
@@ -34,6 +34,12 @@ class CustomIcons {
   static const IconData library_outline = IconData(0xe817, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData history = IconData(0xe818, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData pause = IconData(0xe819, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData add_to_playlist = IconData(0xe81a, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData heart = IconData(0xe81b, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData shrink = IconData(0xe81c, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData plus = IconData(0xe81d, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData download = IconData(0xe81e, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData album = IconData(0xe81f, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData list = IconData(0xe820, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData blocks = IconData(0xe821, fontFamily: _kFontFam, fontPackage: _kFontPkg);
 }

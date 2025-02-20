@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	database "server/src/db"
@@ -60,7 +61,7 @@ func CreateUser() gin.HandlerFunc {
 
 		password := HashPassword(user.Password)
 		user.Password = password
-		user.AvatarUrl = "http://192.168.1.68:9000/avatar/" + user.Uid
+		user.AvatarUrl = "/avatar/" + user.Uid
 		user.ID = primitive.NewObjectID()
 		user.Uid = user.ID.Hex()
 		user.CreatedAt = time.Now()
@@ -161,6 +162,7 @@ func SearchUsers() gin.HandlerFunc {
 			}
 			user.Password = ""
 			user.Email = ""
+			user.AvatarUrl = os.Getenv("SERVER_URL") + user.AvatarUrl
 			users = append(users, user)
 		}
 
@@ -190,6 +192,7 @@ func GetOneUser() gin.HandlerFunc {
 
 		user.Password = ""
 		user.Email = ""
+		user.AvatarUrl = os.Getenv("SERVER_URL") + user.AvatarUrl
 
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado", "erro": err.Error()})

@@ -112,7 +112,7 @@ class _QueueTileState extends State<QueueTile> {
                                 GestureDetector(
                                   onTap: _onPlayPause,
                                   child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(20),
+                                    borderRadius: BorderRadius.circular(25),
                                     child: Image.network(
                                       queue[index].coverUrl,
                                       width: 170,
@@ -124,7 +124,7 @@ class _QueueTileState extends State<QueueTile> {
                                 if (index != state.currentIndex)
                                   Positioned.fill(
                                     child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(20),
+                                      borderRadius: BorderRadius.circular(25),
                                       child: BackdropFilter(
                                         filter: ImageFilter.blur(
                                             sigmaX: 2, sigmaY: 2),
@@ -137,7 +137,7 @@ class _QueueTileState extends State<QueueTile> {
                                     child: GestureDetector(
                                       onTap: _onPlayPause,
                                       child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(25),
                                         child: BackdropFilter(
                                           filter: ImageFilter.blur(
                                             sigmaX: 1,

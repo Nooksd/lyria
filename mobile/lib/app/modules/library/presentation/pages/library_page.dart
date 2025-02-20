@@ -1,22 +1,105 @@
 import 'package:flutter/material.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/auth/domain/entities/app_user.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
+import 'package:lyria/app/modules/library/presentation/includes/playlists_include.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
 
-class LibraryPage extends StatelessWidget {
-  final AppUser? authCubit = getIt<AuthCubit>().currentUser;
+class LibraryPage extends StatefulWidget {
+  const LibraryPage({super.key});
+
+  @override
+  State<LibraryPage> createState() => _LibraryPageState();
+}
+
+class _LibraryPageState extends State<LibraryPage> {
+  final AppUser? user = getIt<AuthCubit>().currentUser;
+
+  final AuthCubit authCubit = getIt<AuthCubit>();
   final MusicCubit musicCubit = getIt<MusicCubit>();
 
-  LibraryPage({super.key});
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  void _temp(BuildContext context) {
+    authCubit.logout(context);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    return Scaffold(
       appBar: CustomAppBar(),
-      body: Center(
-        child: Text("LIBRARY"),
+      body: Padding(
+        padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                if (user != null)
+                  GestureDetector(
+                    onTap: () => _temp(context),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(100),
+                      child: Container(
+                        width: 45,
+                        height: 45,
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primary,
+                          image: DecorationImage(
+                            image: NetworkImage(user!.avatarUrl),
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                SizedBox(
+                  child: Row(
+                    children: [
+                      IconButton(
+                        onPressed: () {},
+                        icon: Icon(
+                          CustomIcons.download,
+                          size: 25,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        icon: Icon(
+                          CustomIcons.heart_outline,
+                          size: 25,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () {},
+                        icon: Icon(
+                          CustomIcons.plus,
+                          size: 25,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 40),
+            Expanded(
+              child: PlaylistsInclude(),
+            ),
+          ],
+        ),
       ),
     );
   }

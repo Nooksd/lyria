@@ -9,6 +9,8 @@ import 'package:lyria/app/modules/auth/data/api_auth_repo.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/explorer/data/api_search_repo.dart';
 import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
+import 'package:lyria/app/modules/library/data/api_playlist_repo.dart';
+import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 
 final getIt = GetIt.instance;
@@ -30,6 +32,10 @@ Future<void> setupLocator(AudioHandler audioHandler) async {
         http: getIt<MyHttpClient>(),
         storage: getIt<MyLocalStorage>(),
       ));
+  getIt.registerLazySingleton(() => ApiPlaylistRepo(
+        http: getIt<MyHttpClient>(),
+        storage: getIt<MyLocalStorage>(),
+      ));
 
   // Cubits
   getIt.registerSingleton<AuthCubit>(
@@ -43,5 +49,8 @@ Future<void> setupLocator(AudioHandler audioHandler) async {
   );
   getIt.registerSingleton<MusicCubit>(
     MusicCubit(getIt<ThemeCubit>(), getIt<AudioHandler>()),
+  );
+  getIt.registerSingleton<PlaylistCubit>(
+    PlaylistCubit(playlistRepo: getIt<ApiPlaylistRepo>()),
   );
 }

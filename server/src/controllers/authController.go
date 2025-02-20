@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	helper "server/src/helpers"
@@ -77,10 +78,15 @@ func LoginUser() gin.HandlerFunc {
 			})
 		}
 
+		userCopy := user
+		userCopy.Password = ""
+		userCopy.Email = strings.Split(user.Email, "@")[0][:5] + "****" + "@" + strings.Split(user.Email, "@")[1]
+		userCopy.AvatarUrl = os.Getenv("SERVER_URL") + userCopy.AvatarUrl
+
 		c.JSON(http.StatusOK, gin.H{
 			"accessToken":  accessToken,
 			"refreshToken": refreshToken,
-			"user":         user,
+			"user":         userCopy,
 			"type":         user.UserType,
 		})
 	}
