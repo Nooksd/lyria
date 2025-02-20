@@ -28,7 +28,7 @@ class SearchInclude extends StatelessWidget {
     switch (search.type) {
       case 'music':
         if (search.music != null && search.music!.url != '') {
-          await cubit.setQueue([search.music!], 0);
+          await cubit.setQueue([search.music!], 0, null);
         }
         break;
       case 'artist':

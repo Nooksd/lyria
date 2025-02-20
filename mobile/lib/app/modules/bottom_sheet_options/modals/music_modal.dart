@@ -14,7 +14,7 @@ class MusicModal extends CustomModal {
 
   Future<void> _onPlay() async {
     if (search.music != null) {
-      await cubit.setQueue([search.music!], 0);
+      await cubit.setQueue([search.music!], 0, null);
     }
   }
 

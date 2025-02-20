@@ -9,6 +9,7 @@ import 'package:lyria/app/modules/auth/presentation/pages/decide_page.dart';
 import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
 import 'package:lyria/app/modules/explorer/presentation/pages/explorer_page.dart';
 import 'package:lyria/app/modules/home/presentation/pages/home_page.dart';
+import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 import 'package:lyria/app/modules/library/presentation/pages/library_page.dart';
 import 'package:lyria/app/modules/library/presentation/pages/playlist_page.dart';
@@ -132,7 +133,7 @@ class AppRouter {
           GoRoute(
             path: '/auth/ui/playlist',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: PlaylistPage(),
+              child: PlaylistPage(playlist: state.extra as Playlist),
             ),
           ),
         ],

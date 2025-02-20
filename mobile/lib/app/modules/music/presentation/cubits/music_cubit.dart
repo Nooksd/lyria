@@ -9,22 +9,31 @@ import 'package:lyria/app/core/services/music/music_service.dart';
 class MusicCubit extends Cubit<MusicState> {
   final ThemeCubit themeCubit;
   final AudioHandler _audioHandler;
+  String _currentPlaylistId = '';
 
   MusicCubit(this.themeCubit, this._audioHandler) : super(MusicInitial()) {
     _setupAudioListeners();
   }
 
   MusicService get _musicService => _audioHandler as MusicService;
+
   int get currentIndex =>
       state is MusicPlaying ? (state as MusicPlaying).currentIndex : 0;
+
+  String get currentPlaylistId => _currentPlaylistId;
+
   Stream<Duration> get positionStream =>
       (_audioHandler as MusicService).positionStream;
+
   Stream<Duration> get durationStream => _audioHandler.mediaItem
       .map((item) => item?.duration ?? Duration.zero)
       .distinct();
+
   Duration get duration =>
       _audioHandler.mediaItem.value?.duration ?? Duration.zero;
+
   Stream<PlaybackState> get playbackStateStream => _audioHandler.playbackState;
+
   List<MediaItem> get queue => _audioHandler.queue.value;
 
   void _setupAudioListeners() {
@@ -43,8 +52,9 @@ class MusicCubit extends Cubit<MusicState> {
     });
   }
 
-  Future<void> setQueue(List<Music> queue, int currentIndex) async {
+  Future<void> setQueue(List<Music> queue, int currentIndex, String? playlistId) async {
     await _musicService.setQueue(queue, currentIndex);
+    _currentPlaylistId = playlistId ?? '';
   }
 
   Future<void> addToQueue(Music music) async {
@@ -92,6 +102,7 @@ class MusicCubit extends Cubit<MusicState> {
   Future<void> stop() async {
     try {
       await _audioHandler.stop();
+      _currentPlaylistId = '';
       themeCubit.updatePrimaryColor(Colors.white);
       emit(MusicStopped());
     } catch (e) {

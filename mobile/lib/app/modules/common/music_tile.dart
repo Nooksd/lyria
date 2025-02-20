@@ -23,6 +23,7 @@ class MusicTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
+      contentPadding: EdgeInsets.zero,
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(isRound ? 100 : 10),
         child: Container(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
@@ -21,6 +22,10 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
   void initState() {
     super.initState();
     playlistCubit.getPlaylists();
+  }
+
+  void _openPlaylist(Playlist playlist) {
+    context.push('/auth/ui/playlist', extra: playlist);
   }
 
   @override
@@ -74,15 +79,18 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: Container(
-                                  width: itemWidth,
-                                  height: itemWidth,
-                                  decoration: BoxDecoration(
-                                    image: DecorationImage(
-                                      image: NetworkImage(playlist.imageUrl),
-                                      fit: BoxFit.cover,
+                              GestureDetector(
+                                onTap: () => _openPlaylist(playlist),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Container(
+                                    width: itemWidth,
+                                    height: itemWidth,
+                                    decoration: BoxDecoration(
+                                      image: DecorationImage(
+                                        image: NetworkImage(playlist.imageUrl),
+                                        fit: BoxFit.cover,
+                                      ),
                                     ),
                                   ),
                                 ),
