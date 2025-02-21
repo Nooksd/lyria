@@ -41,6 +41,18 @@ func UploadCover() gin.HandlerFunc {
 	}
 }
 
+func UploadPlaylistCover() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		playlistId := c.Param("playlistId")
+		if playlistId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID não fornecido"})
+			return
+		}
+
+		handleFileUpload(c, playlistId, "cover", "png")
+	}
+}
+
 func GetAvatar() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		getImage(c, "avatar")
@@ -50,6 +62,12 @@ func GetAvatar() gin.HandlerFunc {
 func GetCover() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		getImage(c, "cover")
+	}
+}
+
+func GetPlaylistCover() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		getImage(c, "playlist")
 	}
 }
 

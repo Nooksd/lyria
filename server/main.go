@@ -25,19 +25,23 @@ func main() {
 		port = "8080"
 	}
 	router := gin.New()
+
+	router.GET("/favicon.ico", func(c *gin.Context) { c.File("favicon.ico") })
+
 	router.Use(gin.Logger())
 
 	go websocketmanager.ManagerInstance.Run()
 
 	routes.AuthRoutes(router)
 	routes.ImageRoutes(router)
-	routes.StreamRoutes(router)
 
 	authProtected := router.Group("/")
 	authProtected.Use(middlewares.Authenticate())
 
+	routes.StreamRoutes(authProtected)
 	routes.UserRoutes(authProtected)
 	routes.MusicRoutes(authProtected)
+	routes.PlaylistRoutes(authProtected)
 	routes.MusicJamRoutes(authProtected)
 
 	if err := router.Run(":" + port); err != nil {

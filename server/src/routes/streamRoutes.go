@@ -6,6 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func StreamRoutes(router *gin.Engine) {
+func StreamRoutes(router *gin.RouterGroup) {
 	router.GET("/stream/:musicId", controller.StreamMusic())
 }

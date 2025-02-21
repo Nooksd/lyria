@@ -23,6 +23,7 @@ func MusicRoutes(router *gin.RouterGroup) {
 		album.PUT("/update/:albumId", controller.UpdateAlbum())
 		album.DELETE("/delete/:albumId", controller.DeleteAlbum())
 	}
+	router.POST("/image/cover/:albumId", controller.UploadCover())
 	{
 		music.POST("/create", controller.CreateMusic())
 		music.PUT("/update/:musicId", controller.UpdateMusic())

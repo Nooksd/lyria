@@ -179,11 +179,6 @@ func GetOneUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userId := c.Param("userId")
 
-		if err := helper.MatchUserTypeToUid(c, userId); err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-			return
-		}
-
 		var ctx, cancel = context.WithTimeout(context.Background(), 100+time.Second)
 
 		var user model.User

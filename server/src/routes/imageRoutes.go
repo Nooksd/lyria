@@ -11,5 +11,6 @@ func ImageRoutes(router *gin.Engine) {
 	{
 		image.GET("/avatar/:userId", controller.GetAvatar())
 		image.GET("/cover/:id", controller.GetCover())
+		image.GET("/playlist/:playlistId", controller.GetPlaylistCover())
 	}
 }

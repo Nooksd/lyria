@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"net/http"
+	"os"
 	database "server/src/db"
 	model "server/src/models"
 	"time"
@@ -30,7 +31,7 @@ func CreatePlaylist() gin.HandlerFunc {
 			return
 		}
 
-		userId := claims["Uid"].(string)
+		userId := claims["UserId"].(string)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -50,7 +51,7 @@ func CreatePlaylist() gin.HandlerFunc {
 
 		playlist.ID = primitive.NewObjectID()
 		playlist.OwnerID = ownerID
-		playlist.PlaylistCoverUrl = "http://192.168.1.68:9000/cover/" + playlist.ID.Hex()
+		playlist.PlaylistCoverUrl = "/image/playlist/" + playlist.ID.Hex()
 		playlist.IsPublic = false
 		playlist.CreatedAt = time.Now()
 		playlist.UpdatedAt = time.Now()
@@ -77,54 +78,44 @@ func GetPlaylist() gin.HandlerFunc {
 		defer cancel()
 
 		playlistId := c.Param("playlistId")
-
 		objectId, err := primitive.ObjectIDFromHex(playlistId)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
 			return
 		}
 
-		var playlist model.Playlist
+		pipeline := []bson.M{
+			{"$match": bson.M{"_id": objectId}},
+			{"$lookup": bson.M{
+				"from":         "musics",
+				"localField":   "musics",
+				"foreignField": "_id",
+				"as":           "musics",
+			}},
+			{"$project": bson.M{
+				"musics":           1,
+				"name":             1,
+				"ownerId":          1,
+				"isPublic":         1,
+				"playlistCoverUrl": 1,
+				"createdAt":        1,
+				"updatedAt":        1,
+			}},
+		}
 
-		err = playlistCollection.FindOne(ctx, bson.M{"_id": objectId}).Decode(&playlist)
+		cursor, err := playlistCollection.Aggregate(ctx, pipeline)
 		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar playlist"})
+			return
+		}
+
+		var results []bson.M
+		if err = cursor.All(ctx, &results); err != nil || len(results) == 0 {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Playlist não encontrada"})
 			return
 		}
 
-		aggregatePipeline := []bson.M{
-			{
-				"$match": bson.M{"_id": bson.M{"$in": playlist.Musics}},
-			},
-			{
-				"$project": bson.M{
-					"_id":           1,
-					"artistId":      1,
-					"albumId":       1,
-					"genre":         1,
-					"numOfSaves":    1,
-					"audioFileName": 1,
-				},
-			},
-		}
-
-		cursor, err := musicCollection.Aggregate(ctx, aggregatePipeline)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
-			return
-		}
-
-		var musics []model.Music
-
-		if err := cursor.All(ctx, &musics); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar músicas"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"playlist": playlist,
-			"musics":   musics,
-		})
+		c.JSON(http.StatusOK, results[0])
 	}
 }
 
@@ -134,25 +125,81 @@ func UpdatePlaylist() gin.HandlerFunc {
 		defer cancel()
 
 		playlistId := c.Param("playlistId")
-
 		objectId, err := primitive.ObjectIDFromHex(playlistId)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido da playlist"})
 			return
 		}
 
-		var updateData bson.M
+		type RawUpdateData struct {
+			Musics   []string `json:"musics,omitempty"`
+			Name     string   `json:"name,omitempty"`
+			IsPublic *bool    `json:"isPublic,omitempty"`
+		}
 
-		if err := c.BindJSON(&updateData); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
+		var rawData RawUpdateData
+		if err := c.BindJSON(&rawData); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos: " + err.Error()})
 			return
 		}
 
-		updateData["updatedAt"] = time.Now()
+		var musicIDs []primitive.ObjectID
+		for _, idStr := range rawData.Musics {
+			id, err := primitive.ObjectIDFromHex(idStr)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "ID de música inválido: " + idStr})
+				return
+			}
+			musicIDs = append(musicIDs, id)
+		}
 
-		_, err = playlistCollection.UpdateOne(ctx, bson.M{"_id": objectId}, bson.M{"$set": updateData})
+		updateData := bson.M{
+			"updatedAt": time.Now(),
+		}
+
+		if len(musicIDs) > 0 {
+			updateData["musics"] = musicIDs
+		}
+		if rawData.Name != "" {
+			updateData["name"] = rawData.Name
+		}
+		if rawData.IsPublic != nil {
+			updateData["isPublic"] = *rawData.IsPublic
+		}
+
+		userClaims, exists := c.Get("user")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
+			return
+		}
+
+		claims, ok := userClaims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
+			return
+		}
+
+		userId, err := primitive.ObjectIDFromHex(claims["UserId"].(string))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID de usuário inválido"})
+			return
+		}
+
+		result, err := playlistCollection.UpdateOne(
+			ctx,
+			bson.M{
+				"_id":     objectId,
+				"ownerId": userId,
+			},
+			bson.M{"$set": updateData},
+		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar a playlist"})
+			return
+		}
+
+		if result.MatchedCount == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Playlist não encontrada ou permissão negada"})
 			return
 		}
 
@@ -196,7 +243,7 @@ func GetOwnPlaylists() gin.HandlerFunc {
 			return
 		}
 
-		ownerId := claims["Uid"].(string)
+		ownerId := claims["UserId"].(string)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -207,13 +254,64 @@ func GetOwnPlaylists() gin.HandlerFunc {
 			return
 		}
 
-		var playlists []model.Playlist
+		serverURL := os.Getenv("SERVER_URL")
 
-		cursor, err := playlistCollection.Find(ctx, bson.M{"ownerId": objectId})
+		pipeline := []bson.M{
+			{"$match": bson.M{"ownerId": objectId}},
+			{"$lookup": bson.M{
+				"from":         "musics",
+				"localField":   "musics",
+				"foreignField": "_id",
+				"as":           "musics",
+				"pipeline": []bson.M{
+					{
+						"$lookup": bson.M{
+							"from":         "albums",
+							"localField":   "albumId",
+							"foreignField": "_id",
+							"as":           "album",
+						},
+					},
+					{"$unwind": bson.M{"path": "$album", "preserveNullAndEmptyArrays": true}},
+					{
+						"$lookup": bson.M{
+							"from":         "artists",
+							"localField":   "album.artistId",
+							"foreignField": "_id",
+							"as":           "artist",
+						},
+					},
+					{"$unwind": bson.M{"path": "$artist", "preserveNullAndEmptyArrays": true}},
+					{"$addFields": bson.M{
+						"coverUrl":   bson.M{"$concat": []interface{}{serverURL, "$album.albumCoverUrl"}},
+						"artistName": "$artist.name",
+						"albumName":  "$album.name",
+						"color":      "$album.color",
+						"url":        bson.M{"$concat": []interface{}{serverURL, "$url"}},
+					}},
+				},
+			}},
+			{"$addFields": bson.M{
+				"playlistCoverUrl": bson.M{"$concat": []interface{}{serverURL, "$playlistCoverUrl"}},
+			}},
+			{"$project": bson.M{
+				"musics":           1,
+				"name":             1,
+				"ownerId":          1,
+				"isPublic":         1,
+				"playlistCoverUrl": 1,
+				"createdAt":        1,
+				"updatedAt":        1,
+			}},
+		}
+
+		cursor, err := playlistCollection.Aggregate(ctx, pipeline)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar playlists"})
 			return
 		}
+
+		var playlists []bson.M
 		if err := cursor.All(ctx, &playlists); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar playlists"})
 			return
