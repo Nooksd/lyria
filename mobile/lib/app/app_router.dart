@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:get_it/get_it.dart';
 import 'package:lyria/app/core/custom/splash.dart';
 import 'package:lyria/app/modules/album/presentation/pages/album_page.dart';
+import 'package:lyria/app/modules/library/presentation/pages/add_artist.dart';
 import 'package:lyria/app/modules/artist/presentation/pages/artist_page.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/pages/decide_page.dart';
@@ -11,9 +12,11 @@ import 'package:lyria/app/modules/explorer/presentation/pages/explorer_page.dart
 import 'package:lyria/app/modules/home/presentation/pages/home_page.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
+import 'package:lyria/app/modules/library/presentation/pages/add_playlist.dart';
 import 'package:lyria/app/modules/library/presentation/pages/library_page.dart';
 import 'package:lyria/app/modules/library/presentation/pages/playlist_page.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
+import 'package:lyria/app/modules/library/presentation/pages/add_music.dart';
 import 'package:lyria/app/modules/music/presentation/pages/music_page.dart';
 import 'package:lyria/app/modules/ui/includes/navigator_page.dart';
 import 'package:flutter/material.dart';
@@ -134,6 +137,24 @@ class AppRouter {
             path: '/auth/ui/playlist',
             pageBuilder: (context, state) => NoTransitionPage(
               child: PlaylistPage(playlist: state.extra as Playlist),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/addPlaylist',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: AddPlaylist(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/addArtist',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: AddArtist(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/addMusic',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: AddMusic(),
             ),
           ),
         ],

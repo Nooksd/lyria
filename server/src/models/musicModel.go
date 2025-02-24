@@ -7,7 +7,7 @@ import (
 )
 
 type Music struct {
-	ID        primitive.ObjectID `json:"id" bson:"_id"`
+	ID        primitive.ObjectID `json:"_id" bson:"_id"`
 	Url       string             `json:"url" bson:"url" validate:"required"`
 	Name      string             `json:"name" bson:"name" validate:"required"`
 	ArtistID  primitive.ObjectID `json:"artistId" bson:"artistId" validate:"required"`

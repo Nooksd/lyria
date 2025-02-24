@@ -68,7 +68,11 @@ func CreatePlaylist() gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusCreated, gin.H{"message": "Playlist criada com sucesso", "playlist": playlist})
+		newPlaylist := playlist
+		newPlaylist.PlaylistCoverUrl = os.Getenv("SERVER_URL") + playlist.PlaylistCoverUrl
+		newPlaylist.ID = playlist.ID
+
+		c.JSON(http.StatusCreated, gin.H{"message": "Playlist criada com sucesso", "playlist": newPlaylist})
 	}
 }
 

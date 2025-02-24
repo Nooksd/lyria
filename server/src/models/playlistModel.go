@@ -7,7 +7,7 @@ import (
 )
 
 type Playlist struct {
-	ID               primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	ID               primitive.ObjectID   `json:"_id" bson:"_id,omitempty"`
 	Name             string               `json:"name" bson:"name" validate:"required"`
 	OwnerID          primitive.ObjectID   `json:"ownerId" bson:"ownerId" validate:"required"`
 	PlaylistCoverUrl string               `json:"playlistCoverUrl" bson:"playlistCoverUrl" validate:"required"`

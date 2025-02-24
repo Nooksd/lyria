@@ -7,7 +7,7 @@ import (
 )
 
 type Album struct {
-	ID            primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	ID            primitive.ObjectID `json:"_id" bson:"_id,omitempty"`
 	Name          string             `json:"name" bson:"name" validate:"required"`
 	ArtistID      primitive.ObjectID `json:"artistId" bson:"artistId" validate:"required"`
 	AlbumCoverUrl string             `json:"albumCoverUrl" bson:"albumCoverUrl" validate:"required"`

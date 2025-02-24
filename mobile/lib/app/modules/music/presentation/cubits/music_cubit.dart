@@ -52,7 +52,8 @@ class MusicCubit extends Cubit<MusicState> {
     });
   }
 
-  Future<void> setQueue(List<Music> queue, int currentIndex, String? playlistId) async {
+  Future<void> setQueue(
+      List<Music> queue, int currentIndex, String? playlistId) async {
     await _musicService.setQueue(queue, currentIndex);
     _currentPlaylistId = playlistId ?? '';
   }
@@ -118,20 +119,18 @@ class MusicCubit extends Cubit<MusicState> {
     }
 
     final mediaQueue = _audioHandler.queue.value;
-    if (mediaQueue.isEmpty) {
-      emit(MusicStopped());
-      return;
-    }
+    if (mediaQueue.isEmpty) return;
+
     final List<Music> musicQueue = mediaQueue
         .map((item) => _musicService.musicFromMediaItem(item))
         .toList();
 
     final currentMediaItem = _audioHandler.mediaItem.value;
     if (currentMediaItem == null) return;
+
     final Music currentMusic =
         _musicService.musicFromMediaItem(currentMediaItem);
-    final currentIdx =
-        musicQueue.indexWhere((item) => item.id == currentMediaItem.id);
+    final currentIdx = _musicService.currentIndex;
 
     emit(MusicPlaying(
       currentMusic: currentMusic,

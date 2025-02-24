@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/auth/domain/entities/app_user.dart';
@@ -7,26 +8,21 @@ import 'package:lyria/app/modules/library/presentation/includes/playlists_includ
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
 
-class LibraryPage extends StatefulWidget {
-  const LibraryPage({super.key});
-
-  @override
-  State<LibraryPage> createState() => _LibraryPageState();
-}
-
-class _LibraryPageState extends State<LibraryPage> {
+class LibraryPage extends StatelessWidget {
   final AppUser? user = getIt<AuthCubit>().currentUser;
-
   final AuthCubit authCubit = getIt<AuthCubit>();
   final MusicCubit musicCubit = getIt<MusicCubit>();
 
-  @override
-  void initState() {
-    super.initState();
-  }
+  LibraryPage({super.key});
 
   void _temp(BuildContext context) {
     authCubit.logout(context);
+  }
+
+  void _goToDownloads(BuildContext context) {}
+  void _goToFavorites(BuildContext context) {}
+  void _goToAddPlaylist(BuildContext context) {
+    context.push("/auth/ui/addPlaylist");
   }
 
   @override
@@ -66,7 +62,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   child: Row(
                     children: [
                       IconButton(
-                        onPressed: () {},
+                        onPressed: () => _goToDownloads(context),
                         icon: Icon(
                           CustomIcons.download,
                           size: 25,
@@ -74,7 +70,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         ),
                       ),
                       IconButton(
-                        onPressed: () {},
+                        onPressed: () => _goToFavorites(context),
                         icon: Icon(
                           CustomIcons.heart_outline,
                           size: 25,
@@ -82,7 +78,7 @@ class _LibraryPageState extends State<LibraryPage> {
                         ),
                       ),
                       IconButton(
-                        onPressed: () {},
+                        onPressed: () => _goToAddPlaylist(context),
                         icon: Icon(
                           CustomIcons.plus,
                           size: 25,

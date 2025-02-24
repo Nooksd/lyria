@@ -49,7 +49,7 @@ func UploadPlaylistCover() gin.HandlerFunc {
 			return
 		}
 
-		handleFileUpload(c, playlistId, "cover", "png")
+		handleFileUpload(c, playlistId, "playlist", "png")
 	}
 }
 

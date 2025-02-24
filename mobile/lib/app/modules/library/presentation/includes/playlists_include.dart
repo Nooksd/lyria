@@ -21,11 +21,64 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
   @override
   void initState() {
     super.initState();
-    playlistCubit.getPlaylists();
+    playlistCubit.getPlaylists(false);
   }
 
   void _openPlaylist(Playlist playlist) {
     context.push('/auth/ui/playlist', extra: playlist);
+  }
+
+  void _onDelete() {}
+  void _onShare() {}
+
+  void _showBottomSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+      useRootNavigator: true,
+      builder: (context) => Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 50),
+              child: Container(
+                width: double.infinity,
+                height: 2,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 20),
+                  ListTile(
+                    leading: const Icon(CustomIcons.playlist_delete),
+                    title: const Text('Deletar Playlist'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _onDelete();
+                    },
+                  ),
+                  ListTile(
+                    leading: const Icon(CustomIcons.share),
+                    title: const Text('Compartilhar'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _onShare();
+                    },
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -49,7 +102,7 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
             color: Theme.of(context).colorScheme.onPrimary,
             backgroundColor: Theme.of(context).colorScheme.primary,
             onRefresh: () async {
-              await playlistCubit.getPlaylists();
+              await playlistCubit.getPlaylists(true);
             },
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -81,6 +134,7 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                             children: [
                               GestureDetector(
                                 onTap: () => _openPlaylist(playlist),
+                                onLongPress: () => _showBottomSheet(context),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
                                   child: Container(
@@ -88,7 +142,8 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                                     height: itemWidth,
                                     decoration: BoxDecoration(
                                       image: DecorationImage(
-                                        image: NetworkImage(playlist.imageUrl),
+                                        image: NetworkImage(
+                                            playlist.playlistCoverUrl),
                                         fit: BoxFit.cover,
                                       ),
                                     ),

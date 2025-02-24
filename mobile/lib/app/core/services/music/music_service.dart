@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/modules/music/domain/entities/lyrics.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 
 class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final MyLocalStorage storage;
   final ConcatenatingAudioSource _playlist =
       ConcatenatingAudioSource(children: []);
 
@@ -20,8 +22,9 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   final StreamController<void> _notificationDeletedController =
       StreamController<void>.broadcast();
   Stream<void> get notificationDeleted => _notificationDeletedController.stream;
+  int get currentIndex => _audioPlayer.currentIndex ?? 0;
 
-  MusicService() {
+  MusicService({required this.storage}) {
     _init();
   }
 
@@ -39,8 +42,9 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
           .toList();
       updateQueue(newQueue);
 
-      final currentItem = sequenceState.currentSource?.tag as MediaItem?;
-      if (currentItem != null) {
+      final currentIdx = _audioPlayer.currentIndex ?? 0;
+      if (currentIdx < newQueue.length) {
+        final currentItem = newQueue[currentIdx];
         mediaItem.add(currentItem.copyWith(duration: _audioPlayer.duration));
       }
     });
@@ -185,12 +189,17 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<AudioSource> _createAudioSource(Music music) async {
+    String? accessToken = await storage.get('accessToken');
+
     try {
       final tempSource = AudioSource.uri(Uri.parse(music.url));
       final duration = tempSource.duration;
 
       return AudioSource.uri(
         Uri.parse(music.url),
+        headers: {
+          'Authorization': accessToken ?? '',
+        },
         tag: convertMusicToMediaItem(music, duration),
       );
     } catch (e) {

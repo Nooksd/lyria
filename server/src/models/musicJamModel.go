@@ -7,13 +7,13 @@ import (
 )
 
 type Participant struct {
-	ID        primitive.ObjectID `json:"id" bson:"id"`
+	ID        primitive.ObjectID `json:"_id" bson:"id"`
 	Name      string             `json:"name" bson:"name"`
 	AvatarUrl string             `json:"avatarUrl" bson:"avatarUrl"`
 }
 
 type MusicJam struct {
-	ID           primitive.ObjectID   `json:"id" bson:"_id,omitempty"`
+	ID           primitive.ObjectID   `json:"_id" bson:"_id,omitempty"`
 	SimpleID     string               `json:"simpleId" bson:"simpleId" validate:"required"`
 	OwnerID      primitive.ObjectID   `json:"ownerId" bson:"ownerId" validate:"required"`
 	Participants []Participant        `json:"participants" bson:"participants"`

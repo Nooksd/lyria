@@ -9,8 +9,8 @@ import (
 func ImageRoutes(router *gin.Engine) {
 	image := router.Group("/image")
 	{
-		image.GET("/avatar/:userId", controller.GetAvatar())
+		image.GET("/avatar/:id", controller.GetAvatar())
 		image.GET("/cover/:id", controller.GetCover())
-		image.GET("/playlist/:playlistId", controller.GetPlaylistCover())
+		image.GET("/playlist/:id", controller.GetPlaylistCover())
 	}
 }
