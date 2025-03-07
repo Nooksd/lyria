@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
@@ -18,7 +19,7 @@ class ApiPlaylistRepo extends PlaylistRepo {
       final playlist = jsonEncode({"name": name, "musics": []});
       final response = await http.post("/playlist/create", data: playlist);
 
-      if (response['status'] == 200) {
+      if (response['status'] == 201) {
         final data = response["data"]["playlist"];
         return Playlist.fromJson(data);
       }
@@ -30,9 +31,14 @@ class ApiPlaylistRepo extends PlaylistRepo {
   }
 
   @override
-  Future<void> deletePlaylist(String id) async {
-    // TODO: implement deletePlaylist
-    throw UnimplementedError();
+  Future<void> deletePlaylist(String id) {
+    try {
+      http.delete("/playlist/delete/$id");
+      return Future.value();
+    } catch (e) {
+      debugPrint(e.toString());
+      throw Exception(e);
+    }
   }
 
   @override
@@ -81,12 +87,20 @@ class ApiPlaylistRepo extends PlaylistRepo {
   }
 
   @override
-  Future<void> uploadPlaylistCover(String playlistId, File imageCover) {
+  Future<bool> uploadPlaylistCover(String playlistId, File imageCover) async {
     try {
       final Map<String, dynamic> body = {"playlist": imageCover};
-      return http.multiPart("/image/playlist/$playlistId", body: body);
+      final response =
+          await http.multiPart("/image/playlist/$playlistId", body: body);
+
+      if (response['status'] != 200) {
+        await deletePlaylist(playlistId);
+        return false;
+      }
+
+      return true;
     } catch (e) {
-      throw Exception(e);
+      return false;
     }
   }
 }

@@ -17,6 +17,8 @@ class PlaylistCubit extends Cubit<PlaylistState> {
         await playlistRepo.getPlaylists(_playlists.isEmpty || hasToFetch);
 
     _playlists = playlists;
+
+    print(playlists);
     emit(PlaylistLoaded(playlists));
   }
 
@@ -24,7 +26,6 @@ class PlaylistCubit extends Cubit<PlaylistState> {
     emit(PlaylistLoading());
     final newPlaylist = await playlistRepo.createPlaylist(name);
 
-    print(newPlaylist);
     if (newPlaylist == null) return;
 
     if (imageCover != null) {

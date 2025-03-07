@@ -28,10 +28,13 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
     context.push('/auth/ui/playlist', extra: playlist);
   }
 
-  void _onDelete() {}
+  void _onDelete(String id) async {
+    playlistCubit.deletePlaylist(id);
+  }
+
   void _onShare() {}
 
-  void _showBottomSheet(BuildContext context) {
+  void _showBottomSheet(BuildContext context, Playlist playlist) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Theme.of(context).colorScheme.primaryContainer,
@@ -60,7 +63,7 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                     title: const Text('Deletar Playlist'),
                     onTap: () {
                       Navigator.pop(context);
-                      _onDelete();
+                      _onDelete(playlist.id);
                     },
                   ),
                   ListTile(
@@ -134,7 +137,8 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                             children: [
                               GestureDetector(
                                 onTap: () => _openPlaylist(playlist),
-                                onLongPress: () => _showBottomSheet(context),
+                                onLongPress: () =>
+                                    _showBottomSheet(context, playlist),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(10),
                                   child: Container(
@@ -143,7 +147,8 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                                     decoration: BoxDecoration(
                                       image: DecorationImage(
                                         image: NetworkImage(
-                                            playlist.playlistCoverUrl),
+                                          '${playlist.playlistCoverUrl}?t=${DateTime.now().millisecondsSinceEpoch}',
+                                        ),
                                         fit: BoxFit.cover,
                                       ),
                                     ),

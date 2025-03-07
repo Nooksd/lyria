@@ -8,5 +8,5 @@ abstract class PlaylistRepo {
   Future<Playlist?> createPlaylist(String name);
   Future<Playlist> updatePlaylist(Playlist playlist);
   Future<void> deletePlaylist(String id);
-  Future<void> uploadPlaylistCover(String playlistId, File imageCover);
+  Future<bool> uploadPlaylistCover(String playlistId, File imageCover);
 }

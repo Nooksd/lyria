@@ -24,7 +24,7 @@ class AppUser {
 
   factory AppUser.fromMap(Map<String, dynamic> map) {
     return AppUser(
-      uid: map['id'] as String,
+      uid: map['uid'] as String,
       name: map['name'] as String,
       userType: map['userType'] ?? "USER",
       avatarUrl: map['avatarUrl'],
