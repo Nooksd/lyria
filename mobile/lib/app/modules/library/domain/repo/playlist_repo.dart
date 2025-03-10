@@ -9,4 +9,6 @@ abstract class PlaylistRepo {
   Future<Playlist> updatePlaylist(Playlist playlist);
   Future<void> deletePlaylist(String id);
   Future<bool> uploadPlaylistCover(String playlistId, File imageCover);
+  Future<String?> getLastRefreshTime();
+  Future<void> saveLastRefreshTime(String lastRefreshTime);
 }

@@ -24,7 +24,11 @@ import 'package:flutter/material.dart';
 final GetIt getIt = GetIt.instance;
 
 class AppRouter {
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   static final GoRouter router = GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/auth',
     routes: [
       GoRoute(

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -90,10 +91,10 @@ class _MusicIndicatorState extends State<MusicIndicator> {
                             height: 45,
                             decoration: BoxDecoration(
                               color: Theme.of(context).colorScheme.primary,
-                              image: DecorationImage(
-                                image: NetworkImage(currentMusic.coverUrl),
-                                fit: BoxFit.cover,
-                              ),
+                            ),
+                            child: CachedNetworkImage(
+                              imageUrl: currentMusic.coverUrl,
+                              fit: BoxFit.cover,
                             ),
                           ),
                         ),

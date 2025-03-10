@@ -16,14 +16,20 @@ class ApiPlaylistRepo extends PlaylistRepo {
   @override
   Future<Playlist?> createPlaylist(String name) async {
     try {
-      final playlist = jsonEncode({"name": name, "musics": []});
-      final response = await http.post("/playlist/create", data: playlist);
+      final playlistData = jsonEncode({"name": name, "musics": []});
+      final response = await http.post("/playlist/create", data: playlistData);
 
       if (response['status'] == 201) {
         final data = response["data"]["playlist"];
-        return Playlist.fromJson(data);
-      }
+        final newPlaylist = Playlist.fromJson(data);
 
+        await _updateStoredPlaylists((playlists) {
+          playlists.add(newPlaylist);
+          return playlists;
+        });
+
+        return newPlaylist;
+      }
       return null;
     } catch (e) {
       return null;
@@ -31,10 +37,13 @@ class ApiPlaylistRepo extends PlaylistRepo {
   }
 
   @override
-  Future<void> deletePlaylist(String id) {
+  Future<void> deletePlaylist(String id) async {
     try {
-      http.delete("/playlist/delete/$id");
-      return Future.value();
+      await http.delete("/playlist/delete/$id");
+      await _updateStoredPlaylists((playlists) {
+        playlists.removeWhere((playlist) => playlist.id == id);
+        return playlists;
+      });
     } catch (e) {
       debugPrint(e.toString());
       throw Exception(e);
@@ -102,5 +111,44 @@ class ApiPlaylistRepo extends PlaylistRepo {
     } catch (e) {
       return false;
     }
+  }
+
+  @override
+  Future<String?> getLastRefreshTime() async {
+    try {
+      final lastRefreshTime = await storage.get("lastRefreshTime");
+      if (lastRefreshTime != null) {
+        return lastRefreshTime;
+      }
+
+      return Future.value(null);
+    } catch (e) {
+      return Future.value(null);
+    }
+  }
+
+  @override
+  Future<void> saveLastRefreshTime(String lastRefreshTime) {
+    storage.set("lastRefreshTime", lastRefreshTime);
+    return Future.value();
+  }
+
+  Future<List<Playlist>> _updateStoredPlaylists(
+      List<Playlist> Function(List<Playlist>) updateFn) async {
+    List<Playlist> playlists = [];
+
+    final stored = await storage.get("playlists");
+
+    if (stored != null) {
+      final List<dynamic> jsonList = jsonDecode(stored as String);
+      playlists = jsonList
+          .map((e) => Playlist.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+
+    playlists = updateFn(playlists);
+
+    await storage.set("playlists", jsonEncode(playlists));
+    return playlists;
   }
 }

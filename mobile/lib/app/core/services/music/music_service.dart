@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:lyria/app/core/services/download/download_service.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/modules/music/domain/entities/lyrics.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
@@ -10,11 +11,14 @@ import 'package:lyria/app/modules/music/domain/entities/music.dart';
 class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final MyLocalStorage storage;
+  final DownloadService downloadService;
+
   final ConcatenatingAudioSource _playlist =
       ConcatenatingAudioSource(children: []);
 
   bool _isLoop = false;
   bool _isShuffle = false;
+  bool _isSettingQueue = false;
   bool get isLoop => _isLoop;
   bool get isShuffle => _isShuffle;
   Stream<Duration> get positionStream => _audioPlayer.positionStream;
@@ -24,7 +28,7 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   Stream<void> get notificationDeleted => _notificationDeletedController.stream;
   int get currentIndex => _audioPlayer.currentIndex ?? 0;
 
-  MusicService({required this.storage}) {
+  MusicService({required this.storage, required this.downloadService}) {
     _init();
   }
 
@@ -79,6 +83,8 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> setQueue(List<Music> queue, int currentIndex) async {
+    if (_isSettingQueue) return;
+    _isSettingQueue = true;
     await _playlist.clear();
     final sources = <AudioSource>[];
     for (final music in queue) {
@@ -88,9 +94,10 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _playlist.addAll(sources);
     await _audioPlayer.setAudioSource(_playlist, initialIndex: currentIndex);
 
-    if (_playlist.children.isEmpty) return;
-
-    _audioPlayer.play();
+    if (!_audioPlayer.playing) {
+      await _audioPlayer.play();
+    }
+    _isSettingQueue = false;
   }
 
   Future<void> addToQueue(Music music) async {
@@ -189,14 +196,22 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<AudioSource> _createAudioSource(Music music) async {
-    String? accessToken = await storage.get('accessToken');
-
     try {
-      final tempSource = AudioSource.uri(Uri.parse(music.url));
+      final fileName = '${music.id}.mp3';
+      final exists = await downloadService.isFileDownloaded(fileName);
+
+      final uri = exists
+          ? Uri.file(
+              '${await downloadService.getDownloadDirectory()}/$fileName')
+          : Uri.parse(music.url);
+
+      String? accessToken = await storage.get('accessToken');
+
+      final tempSource = AudioSource.uri(uri);
       final duration = tempSource.duration;
 
       return AudioSource.uri(
-        Uri.parse(music.url),
+        uri,
         headers: {
           'Authorization': accessToken ?? '',
         },

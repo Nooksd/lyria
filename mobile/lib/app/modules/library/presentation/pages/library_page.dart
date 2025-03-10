@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
@@ -50,10 +51,10 @@ class LibraryPage extends StatelessWidget {
                         height: 45,
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.primary,
-                          image: DecorationImage(
-                            image: NetworkImage(user!.avatarUrl),
-                            fit: BoxFit.cover,
-                          ),
+                        ),
+                        child: CachedNetworkImage(
+                          imageUrl: user!.avatarUrl,
+                          fit: BoxFit.cover,
                         ),
                       ),
                     ),

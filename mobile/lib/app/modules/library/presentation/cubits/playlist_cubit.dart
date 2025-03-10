@@ -7,18 +7,38 @@ import 'package:lyria/app/modules/library/presentation/cubits/playlist_states.da
 
 class PlaylistCubit extends Cubit<PlaylistState> {
   final PlaylistRepo playlistRepo;
+
+  DateTime _lastRefreshTime = DateTime.now();
   List<Playlist> _playlists = [];
 
-  PlaylistCubit({required this.playlistRepo}) : super(PlaylistInitial());
+  PlaylistCubit({required this.playlistRepo}) : super(PlaylistInitial()) {
+    _loadLastRefreshTime();
+  }
+
+  String get cacheBuster => _lastRefreshTime.toIso8601String();
+
+  Future<void> _loadLastRefreshTime() async {
+    final savedTime = await playlistRepo.getLastRefreshTime();
+
+    if (savedTime != null) {
+      _lastRefreshTime = DateTime.parse(savedTime);
+    }
+  }
+
+  Future<void> _saveLastRefreshTime() async {
+    await playlistRepo.saveLastRefreshTime(_lastRefreshTime.toIso8601String());
+  }
 
   Future<void> getPlaylists(bool hasToFetch) async {
+    if (hasToFetch) {
+      _lastRefreshTime = DateTime.now();
+      await _saveLastRefreshTime();
+    }
+
     emit(PlaylistLoading());
-    final playlists =
-        await playlistRepo.getPlaylists(_playlists.isEmpty || hasToFetch);
+    final playlists = await playlistRepo.getPlaylists(hasToFetch);
 
     _playlists = playlists;
-
-    print(playlists);
     emit(PlaylistLoaded(playlists));
   }
 

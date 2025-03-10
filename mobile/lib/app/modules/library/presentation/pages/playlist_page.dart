@@ -1,15 +1,19 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/components/playlist_control.dart';
 import 'package:lyria/app/modules/library/presentation/components/playlist_musics_builder.dart';
+import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 
 class PlaylistPage extends StatelessWidget {
   final Playlist playlist;
+  final PlaylistCubit playlistCubit = getIt<PlaylistCubit>();
 
-  const PlaylistPage({super.key, required this.playlist});
+  PlaylistPage({super.key, required this.playlist});
 
   @override
   Widget build(BuildContext context) {
@@ -62,14 +66,13 @@ class PlaylistPage extends StatelessWidget {
                       ),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
-                        child: Container(
+                        child: SizedBox(
                           width: screenWidth * 0.6,
                           height: screenWidth * 0.6,
-                          decoration: BoxDecoration(
-                            image: DecorationImage(
-                              image: NetworkImage(playlist.playlistCoverUrl),
-                              fit: BoxFit.cover,
-                            ),
+                          child: CachedNetworkImage(
+                            imageUrl:
+                                '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
+                            fit: BoxFit.cover,
                           ),
                         ),
                       ),

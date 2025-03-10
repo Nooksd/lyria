@@ -19,7 +19,7 @@ class Playlist extends Equatable {
 
   factory Playlist.fromJson(Map<String, dynamic> json) {
     return Playlist(
-      id: json['_id'] as String,
+      id: (json['_id'] ?? json['id']) as String,
       name: json['name'] as String,
       playlistCoverUrl: json['playlistCoverUrl'] as String,
       musics: json['musics'] == null

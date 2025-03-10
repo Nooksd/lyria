@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,8 @@ import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
 import 'package:lyria/app/modules/common/seek_tile.dart';
+import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
+import 'package:lyria/app/modules/download/presentation/includes/download_icon.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
 import 'package:lyria/app/modules/music/presentation/includes/lyrics_tile.dart';
@@ -18,11 +21,18 @@ class MusicPage extends StatefulWidget {
 
 class _MusicPageState extends State<MusicPage> {
   final MusicCubit cubit = getIt<MusicCubit>();
+  final DownloadCubit downloadCubit = getIt<DownloadCubit>();
+
   var _isLyricsExpanded = false;
   final ScrollController _lyricsScrollController = ScrollController();
 
   void _onPlayPause() {
     cubit.playPause();
+  }
+
+  void _onFavoriteToggle() {}
+  void _onDownload(String id, String url) {
+    downloadCubit.downloadMusic(id, url);
   }
 
   void _onSkip() {
@@ -178,14 +188,12 @@ class _MusicPageState extends State<MusicPage> {
                               onHorizontalDragEnd: _onDragEnd,
                               child: ClipRRect(
                                 borderRadius: BorderRadius.circular(20),
-                                child: Container(
+                                child: SizedBox(
                                   width: screenWidth * 0.76,
                                   height: screenWidth * 0.76,
-                                  decoration: BoxDecoration(
-                                    image: DecorationImage(
-                                      image: NetworkImage(music.coverUrl),
-                                      fit: BoxFit.cover,
-                                    ),
+                                  child: CachedNetworkImage(
+                                    imageUrl: music.coverUrl,
+                                    fit: BoxFit.cover,
                                   ),
                                 ),
                               ),
@@ -229,7 +237,7 @@ class _MusicPageState extends State<MusicPage> {
                                 ),
                                 Spacer(),
                                 GestureDetector(
-                                  onTap: () {},
+                                  onTap: _onFavoriteToggle,
                                   child: Icon(
                                     CustomIcons.heart_outline,
                                     size: 22,
@@ -239,13 +247,9 @@ class _MusicPageState extends State<MusicPage> {
                                 ),
                                 SizedBox(width: 20),
                                 GestureDetector(
-                                  onTap: () {},
-                                  child: Icon(
-                                    CustomIcons.download,
-                                    size: 22,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
+                                  onTap: () => _onDownload(music.id, music.url),
+                                  child: DownloadIcon(
+                                      musicId: music.id, width: 22, height: 22),
                                 ),
                               ],
                             ),

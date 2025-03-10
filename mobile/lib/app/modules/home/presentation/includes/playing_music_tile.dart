@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
 
@@ -14,7 +15,7 @@ class PlayingMusicTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    
+
     return Stack(
       children: [
         Positioned(
@@ -27,14 +28,12 @@ class PlayingMusicTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(100),
               child: RotationTransition(
                 turns: rotationController,
-                child: Container(
+                child: SizedBox(
                   width: screenWidth * 0.25,
                   height: screenWidth * 0.25,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: NetworkImage(state.currentMusic.coverUrl),
-                      fit: BoxFit.cover,
-                    ),
+                  child: CachedNetworkImage(
+                    imageUrl: state.currentMusic.coverUrl,
+                    fit: BoxFit.cover,
                   ),
                 ),
               ),
@@ -52,7 +51,10 @@ class PlayingMusicTile extends StatelessWidget {
               height: screenWidth * 0.25,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(100),
-                color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.8),
+                color: Theme.of(context)
+                    .colorScheme
+                    .primaryContainer
+                    .withValues(alpha: 0.8),
               ),
             ),
           ),

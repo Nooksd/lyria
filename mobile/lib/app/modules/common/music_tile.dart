@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class MusicTile extends StatelessWidget {
@@ -30,11 +31,11 @@ class MusicTile extends StatelessWidget {
           width: 55,
           height: 55,
           decoration: BoxDecoration(
-            color: isRound ? Theme.of(context).colorScheme.primary : null,
-            image: DecorationImage(
-              image: NetworkImage(image),
-              fit: BoxFit.cover,
-            ),
+            color: Theme.of(context).colorScheme.primary,
+          ),
+          child: CachedNetworkImage(
+            imageUrl: image,
+            fit: BoxFit.cover,
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lyria/app/app_router.dart';
@@ -113,8 +114,8 @@ class _QueueTileState extends State<QueueTile> {
                                   onTap: _onPlayPause,
                                   child: ClipRRect(
                                     borderRadius: BorderRadius.circular(25),
-                                    child: Image.network(
-                                      queue[index].coverUrl,
+                                    child: CachedNetworkImage(
+                                      imageUrl: queue[index].coverUrl,
                                       width: 170,
                                       height: 170,
                                       fit: BoxFit.cover,

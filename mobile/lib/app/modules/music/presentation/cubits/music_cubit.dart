@@ -112,22 +112,14 @@ class MusicCubit extends Cubit<MusicState> {
   }
 
   void _updatePlaybackState(PlaybackState state) {
-    if (state.processingState == AudioProcessingState.idle &&
-        _audioHandler.mediaItem.value == null) {
-      emit(MusicStopped());
-      return;
-    }
-
     final mediaQueue = _audioHandler.queue.value;
     if (mediaQueue.isEmpty) return;
-
     final List<Music> musicQueue = mediaQueue
         .map((item) => _musicService.musicFromMediaItem(item))
         .toList();
 
     final currentMediaItem = _audioHandler.mediaItem.value;
     if (currentMediaItem == null) return;
-
     final Music currentMusic =
         _musicService.musicFromMediaItem(currentMediaItem);
     final currentIdx = _musicService.currentIndex;
@@ -135,7 +127,7 @@ class MusicCubit extends Cubit<MusicState> {
     emit(MusicPlaying(
       currentMusic: currentMusic,
       queue: musicQueue,
-      isPlaying: state.playing,
+      isPlaying: _audioHandler.playbackState.value.playing,
       currentIndex: currentIdx < 0 ? 0 : currentIdx,
       isLoop: _musicService.isLoop,
       isShuffle: _musicService.isShuffle,

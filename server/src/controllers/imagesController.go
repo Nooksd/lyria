@@ -119,5 +119,7 @@ func getImage(c *gin.Context, subDir string) {
 		filePath = filepath.Join("uploads", "image", subDir, "default.png")
 	}
 
+	c.Header("Cache-Control", "public, max-age=31536000")
+	c.Header("ETag", id)
 	c.File(filePath)
 }

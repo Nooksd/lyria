@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"path/filepath"
 	database "server/src/db"
 	model "server/src/models"
 	"time"
@@ -221,6 +222,17 @@ func DeletePlaylist() gin.HandlerFunc {
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
 			return
+		}
+
+		filePath := filepath.Join("uploads", "image", "playlist", playlistId+".png")
+
+		if _, err := os.Stat(filePath); err == nil {
+			if err := os.Remove(filePath); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "Erro ao deletar imagem da playlist",
+				})
+				return
+			}
 		}
 
 		_, err = playlistCollection.DeleteOne(ctx, bson.M{"_id": objectId})

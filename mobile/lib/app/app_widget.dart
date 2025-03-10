@@ -4,8 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/services/download/download_service.dart';
+// import 'package:lyria/app/core/services/download/download_service.dart';
+// import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/core/themes/theme_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
+import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 
 class AppWidget extends StatelessWidget {
@@ -30,8 +34,16 @@ class AppWidget extends StatelessWidget {
         BlocProvider<ThemeCubit>(
           create: (context) => ThemeCubit(),
         ),
+        BlocProvider<DownloadCubit>(
+          create: (context) => DownloadCubit(
+            downloadService: context.read<DownloadService>(),
+          ),
+        ),
         BlocProvider<MusicCubit>(
-          create: (context) => MusicCubit(context.read<ThemeCubit>(), context.read<AudioHandler>()),
+          create: (context) => MusicCubit(
+            context.read<ThemeCubit>(),
+            context.read<AudioHandler>(),
+          ),
         ),
       ],
       child: BlocProvider<ThemeCubit>(
@@ -47,7 +59,7 @@ class AppWidget extends StatelessWidget {
                 GlobalMaterialLocalizations.delegate,
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,
-              ],     
+              ],
               routerConfig: AppRouter.router,
             );
           },

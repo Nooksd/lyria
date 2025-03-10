@@ -80,4 +80,6 @@ class CustomIcons {
       IconData(0xe822, fontFamily: _kFontFam, fontPackage: _kFontPkg);
   static const IconData playlist_delete =
       IconData(0xe823, fontFamily: _kFontFam, fontPackage: _kFontPkg);
+  static const IconData downloaded =
+      IconData(0xe824, fontFamily: _kFontFam, fontPackage: _kFontPkg);
 }

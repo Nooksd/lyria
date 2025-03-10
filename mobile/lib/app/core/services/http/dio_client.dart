@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 
@@ -70,14 +72,16 @@ class DioClient implements MyHttpClient {
 
                   return handler.resolve(retryResponse);
                 } else {
-                  await storage.remove('accessToken');
-                  await storage.remove('refreshToken');
-                  await storage.remove('user');
+                  await _clearStorageAndNavigate();
                   return handler.next(error);
                 }
               } catch (e) {
+                await _clearStorageAndNavigate();
                 return handler.next(error);
               }
+            } else {
+              await _clearStorageAndNavigate();
+              return handler.next(error);
             }
           }
 
@@ -85,6 +89,21 @@ class DioClient implements MyHttpClient {
         },
       ),
     );
+  }
+
+  Future<void> _clearStorageAndNavigate() async {
+    await storage.remove('accessToken');
+    await storage.remove('refreshToken');
+    await storage.remove('user');
+    _navigateToRoot();
+  }
+
+  void _navigateToRoot() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (AppRouter.navigatorKey.currentContext != null) {
+        GoRouter.of(AppRouter.navigatorKey.currentContext!).go('/auth');
+      }
+    });
   }
 
   @override
@@ -165,6 +184,16 @@ class DioClient implements MyHttpClient {
         "data": response.data,
         "status": response.statusCode,
       };
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  @override
+  Future<File> download(String url, String filePath) async {
+    try {
+      await dio.download(url, filePath);
+      return File(filePath);
     } catch (e) {
       rethrow;
     }
