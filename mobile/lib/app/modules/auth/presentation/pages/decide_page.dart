@@ -50,6 +50,15 @@ class DecidePageState extends State<DecidePage>
       listener: (context, state) {
         if (state is Authenticated) {
           context.go('/auth/ui/home');
+        } else if (state is AuthNeedsVerification) {
+          setState(() {
+            isLogin = false;
+            isExpanded = true;
+          });
+        } else if (state is AuthError) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(state.error)),
+          );
         }
       },
       builder: (context, state) {

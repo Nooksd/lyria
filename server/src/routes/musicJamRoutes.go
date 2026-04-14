@@ -10,6 +10,7 @@ func MusicJamRoutes(router *gin.RouterGroup) {
 	musicJam := router.Group("/musicjam")
 	{
 		musicJam.POST("/create", controller.CreateMusicJam())
+		musicJam.GET("/:simpleId", controller.GetMusicJam())
 		musicJam.GET("/join/:simpleId", controller.JoinMusicJam())
 		musicJam.GET("/leave/:simpleId", controller.LeaveMusicJam())
 

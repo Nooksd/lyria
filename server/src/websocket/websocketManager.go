@@ -14,11 +14,17 @@ type Client struct {
 	SimpleID string
 }
 
+type RoomMessage struct {
+	RoomID  string
+	Message []byte
+	Sender  *Client
+}
+
 type Manager struct {
 	Clients    map[string]map[*Client]bool
 	Register   chan *Client
 	Unregister chan *Client
-	Broadcast  chan []byte
+	Broadcast  chan *RoomMessage
 	mu         sync.Mutex
 }
 
@@ -29,7 +35,7 @@ func NewManager() *Manager {
 		Clients:    make(map[string]map[*Client]bool),
 		Register:   make(chan *Client),
 		Unregister: make(chan *Client),
-		Broadcast:  make(chan []byte),
+		Broadcast:  make(chan *RoomMessage),
 	}
 }
 
@@ -40,8 +46,8 @@ func (m *Manager) Run() {
 			m.addClient(client)
 		case client := <-m.Unregister:
 			m.removeClient(client)
-		case message := <-m.Broadcast:
-			m.broadcastMessage(message)
+		case msg := <-m.Broadcast:
+			m.broadcastToRoom(msg)
 		}
 	}
 }
@@ -74,22 +80,45 @@ func (m *Manager) removeClient(client *Client) {
 	}
 }
 
-func (m *Manager) broadcastMessage(message []byte) {
+func (m *Manager) broadcastToRoom(msg *RoomMessage) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for _, clients := range m.Clients {
-		for client := range clients {
-			select {
-			case client.Send <- message:
-			default:
-				m.removeClient(client)
-			}
+	clients, exists := m.Clients[msg.RoomID]
+	if !exists {
+		return
+	}
+
+	for client := range clients {
+		if msg.Sender != nil && client == msg.Sender {
+			continue
+		}
+		select {
+		case client.Send <- msg.Message:
+		default:
+			delete(clients, client)
+			close(client.Send)
 		}
 	}
 }
 
-func (c *Client) ReadPump() {
+func BroadcastToRoom(roomID string, message []byte, sender *Client) {
+	ManagerInstance.Broadcast <- &RoomMessage{
+		RoomID:  roomID,
+		Message: message,
+		Sender:  sender,
+	}
+}
+
+func BroadcastToRoomAll(roomID string, message []byte) {
+	ManagerInstance.Broadcast <- &RoomMessage{
+		RoomID:  roomID,
+		Message: message,
+		Sender:  nil,
+	}
+}
+
+func (c *Client) ReadPump(handler func(client *Client, message []byte)) {
 	defer func() {
 		ManagerInstance.Unregister <- c
 		c.Conn.Close()
@@ -101,8 +130,7 @@ func (c *Client) ReadPump() {
 			log.Printf("Erro ao ler mensagem: %v", err)
 			break
 		}
-		// Transmite a mensagem para os outros clientes na sala
-		ManagerInstance.Broadcast <- append([]byte(c.SimpleID+": "), message...)
+		handler(c, message)
 	}
 }
 
@@ -112,7 +140,6 @@ func (c *Client) WritePump() {
 	}()
 
 	for {
-
 		message, ok := <-c.Send
 		if !ok {
 			c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -124,6 +151,5 @@ func (c *Client) WritePump() {
 			log.Printf("Erro ao enviar mensagem: %v", err)
 			return
 		}
-
 	}
 }

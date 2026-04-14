@@ -9,6 +9,7 @@ class MusicTile extends StatelessWidget {
   final Widget? trailing;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  final bool enabled;
 
   const MusicTile({
     super.key,
@@ -19,46 +20,77 @@ class MusicTile extends StatelessWidget {
     required this.onTap,
     required this.trailing,
     required this.onLongPress,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(isRound ? 100 : 10),
-        child: Container(
-          width: 55,
-          height: 55,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
+    return Opacity(
+      opacity: enabled ? 1.0 : 0.4,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        enabled: enabled,
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(isRound ? 100 : 10),
+          child: Container(
+            width: 55,
+            height: 55,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            child: image.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: image,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      color: Theme.of(context).colorScheme.primary,
+                      child: Icon(
+                        isRound ? Icons.person : Icons.music_note,
+                        color: Colors.white54,
+                        size: 24,
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      color: Theme.of(context).colorScheme.primary,
+                      child: Icon(
+                        isRound ? Icons.person : Icons.music_note,
+                        color: Colors.white54,
+                        size: 24,
+                      ),
+                    ),
+                  )
+                : Container(
+                    color: Theme.of(context).colorScheme.primary,
+                    child: Icon(
+                      isRound ? Icons.person : Icons.music_note,
+                      color: Colors.white54,
+                      size: 24,
+                    ),
+                  ),
           ),
-          child: CachedNetworkImage(
-            imageUrl: image,
-            fit: BoxFit.cover,
+        ),
+        title: Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
           ),
         ),
-      ),
-      title: Text(
-        title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w600,
+        subtitle: Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color:
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+          ),
         ),
+        trailing: trailing,
+        onTap: enabled ? onTap : null,
+        onLongPress: enabled ? onLongPress : null,
       ),
-      subtitle: Text(
-        subtitle,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-        ),
-      ),
-      trailing: trailing,
-      onTap: onTap,
-      onLongPress: onLongPress,
     );
   }
 }

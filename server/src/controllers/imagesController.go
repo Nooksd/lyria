@@ -71,6 +71,36 @@ func GetPlaylistCover() gin.HandlerFunc {
 	}
 }
 
+func UploadArtistAvatar() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		artistId := c.Param("artistId")
+		if artistId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID não fornecido"})
+			return
+		}
+
+		handleFileUpload(c, artistId, "avatar", "png")
+	}
+}
+
+func UploadArtistBanner() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		artistId := c.Param("artistId")
+		if artistId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID não fornecido"})
+			return
+		}
+
+		handleFileUpload(c, artistId, "banner", "png")
+	}
+}
+
+func GetBanner() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		getImage(c, "banner")
+	}
+}
+
 func handleFileUpload(c *gin.Context, id string, subDir string, fileExtension string) {
 	err := c.Request.ParseMultipartForm(10 << 20)
 	if err != nil {
@@ -119,7 +149,20 @@ func getImage(c *gin.Context, subDir string) {
 		filePath = filepath.Join("uploads", "image", subDir, "default.png")
 	}
 
-	c.Header("Cache-Control", "public, max-age=31536000")
-	c.Header("ETag", id)
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Imagem não encontrada"})
+		return
+	}
+
+	etag := fmt.Sprintf("%s-%d", id, fileInfo.ModTime().Unix())
+
+	if match := c.GetHeader("If-None-Match"); match == etag {
+		c.Status(http.StatusNotModified)
+		return
+	}
+
+	c.Header("Cache-Control", "public, max-age=60, must-revalidate")
+	c.Header("ETag", etag)
 	c.File(filePath)
 }

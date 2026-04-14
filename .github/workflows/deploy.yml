@@ -1,0 +1,227 @@
+name: Deploy Lyria
+
+on:
+  push:
+    branches: [main]
+
+env:
+  DEPLOY_PATH: /opt/lyria
+  BACKUP_PATH: /opt/lyria-backup
+
+jobs:
+  test-server:
+    name: Test Go Server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build server
+        working-directory: ./server
+        run: |
+          go mod download
+          CGO_ENABLED=0 go build -o lyria_server .
+
+  test-admin:
+    name: Test Admin Panel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install and build admin
+        working-directory: ./admin
+        run: |
+          npm ci
+          npm run build
+
+  build-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [test-server, test-admin]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build server image
+        run: |
+          docker build -t lyria-server:latest ./server
+          echo "Server image built successfully"
+
+      - name: Build admin image
+        run: |
+          docker build -t lyria-admin:latest ./admin
+          echo "Admin image built successfully"
+
+      - name: Test docker-compose config
+        run: |
+          docker compose config
+
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build-images]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create backup on server
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'BACKUP'
+            set -e
+            if [ -d "${{ env.DEPLOY_PATH }}" ]; then
+              echo "Creating backup..."
+              sudo rm -rf ${{ env.BACKUP_PATH }}
+              sudo cp -r ${{ env.DEPLOY_PATH }} ${{ env.BACKUP_PATH }}
+              cd ${{ env.DEPLOY_PATH }}
+              docker compose ps --format json > /tmp/lyria-prev-state.json 2>/dev/null || true
+              echo "Backup created successfully"
+            else
+              echo "No existing deployment found, skipping backup"
+              sudo mkdir -p ${{ env.DEPLOY_PATH }}
+            fi
+          BACKUP
+
+      - name: Deploy files
+        run: |
+          rsync -avz --delete \
+            --exclude '.env' \
+            --exclude 'uploads/' \
+            --exclude 'node_modules/' \
+            --exclude '.git/' \
+            --exclude 'mobile/' \
+            --exclude 'build/' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Create env file if not exists
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ENVSETUP'
+            set -e
+            if [ ! -f "${{ env.DEPLOY_PATH }}/server/.env" ]; then
+              cat > ${{ env.DEPLOY_PATH }}/server/.env << 'EOF'
+          PORT=${{ secrets.SERVER_PORT }}
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          MONGODB_URL=${{ secrets.MONGODB_URL }}
+          DOMAIN=${{ secrets.DOMAIN }}
+          SERVER_URL=${{ secrets.SERVER_URL }}
+          ENVIRONMENT=production
+          SMTP_HOST=${{ secrets.SMTP_HOST }}
+          SMTP_PORT=${{ secrets.SMTP_PORT }}
+          SMTP_USER=${{ secrets.SMTP_USER }}
+          SMTP_PASS=${{ secrets.SMTP_PASS }}
+          SMTP_FROM=${{ secrets.SMTP_FROM }}
+          ADMIN_SECRET=${{ secrets.ADMIN_SECRET }}
+          EOF
+              echo "Created .env file"
+            else
+              echo ".env file already exists, keeping current"
+            fi
+          ENVSETUP
+
+      - name: Build and deploy containers
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'DEPLOY'
+            set -e
+            cd ${{ env.DEPLOY_PATH }}
+
+            echo "Building images..."
+            docker compose build --no-cache
+
+            echo "Stopping old containers..."
+            docker compose down --timeout 30
+
+            echo "Starting new containers..."
+            docker compose up -d
+
+            echo "Waiting for health checks..."
+            sleep 15
+
+            # Check server health
+            if ! docker compose ps lyria-server | grep -q "healthy\|running"; then
+              echo "ERROR: Server container is not healthy!"
+              exit 1
+            fi
+
+            # Check nginx
+            if ! docker compose ps nginx | grep -q "running"; then
+              echo "ERROR: Nginx container is not running!"
+              exit 1
+            fi
+
+            echo "Deployment successful!"
+            docker compose ps
+          DEPLOY
+
+      - name: Health check
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'HEALTHCHECK'
+            set -e
+            sleep 5
+
+            # Test API endpoint
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/favicon.ico || echo "000")
+            if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "404" ]; then
+              echo "Health check failed! HTTP code: $HTTP_CODE"
+              exit 1
+            fi
+
+            echo "Health check passed! HTTP code: $HTTP_CODE"
+          HEALTHCHECK
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ROLLBACK'
+            set -e
+            echo "ROLLING BACK..."
+
+            cd ${{ env.DEPLOY_PATH }}
+            docker compose down --timeout 10 2>/dev/null || true
+
+            if [ -d "${{ env.BACKUP_PATH }}" ]; then
+              echo "Restoring from backup..."
+              sudo rm -rf ${{ env.DEPLOY_PATH }}
+              sudo cp -r ${{ env.BACKUP_PATH }} ${{ env.DEPLOY_PATH }}
+
+              cd ${{ env.DEPLOY_PATH }}
+              docker compose up -d
+
+              sleep 10
+
+              if docker compose ps lyria-server | grep -q "healthy\|running"; then
+                echo "Rollback successful!"
+              else
+                echo "WARNING: Rollback containers may not be healthy"
+                docker compose ps
+                docker compose logs --tail=50
+              fi
+            else
+              echo "No backup found. Manual intervention required."
+              exit 1
+            fi
+          ROLLBACK
+
+      - name: Cleanup
+        if: success()
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'CLEANUP'
+            docker image prune -f
+            echo "Cleanup done"
+          CLEANUP

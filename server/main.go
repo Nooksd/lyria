@@ -29,11 +29,13 @@ func main() {
 	router.GET("/favicon.ico", func(c *gin.Context) { c.File("favicon.ico") })
 
 	router.Use(gin.Logger())
+	router.Use(middlewares.CORS())
 
 	go websocketmanager.ManagerInstance.Run()
 
 	routes.AuthRoutes(router)
 	routes.ImageRoutes(router)
+	routes.AdminRoutes(router)
 
 	authProtected := router.Group("/")
 	authProtected.Use(middlewares.Authenticate())
@@ -43,6 +45,7 @@ func main() {
 	routes.MusicRoutes(authProtected)
 	routes.PlaylistRoutes(authProtected)
 	routes.MusicJamRoutes(authProtected)
+	routes.GenreRoutes(authProtected)
 
 	if err := router.Run(":" + port); err != nil {
 		log.Fatalf("Erro ao iniciar o servidor: %v", err)

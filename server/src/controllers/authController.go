@@ -42,13 +42,19 @@ func LoginUser() gin.HandlerFunc {
 
 		err := userCollection.FindOne(context.Background(), bson.M{"email": loginData.Email}).Decode(&user)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"message": "Email ou senha inválidos 1", "status": false})
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Email ou senha inválidos", "status": false})
 			return
 		}
 
 		err = VerifyPassword(loginData.Password, user.Password)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"message": "Email ou senha inválidos 2", "status": false})
+			c.JSON(http.StatusUnauthorized, gin.H{"message": "Email ou senha inválidos", "status": false})
+			return
+		}
+
+		// Only block login for accounts created with email verification flow (non-zero expiry)
+		if !user.EmailVerified && !user.VerificationExpiry.IsZero() {
+			c.JSON(http.StatusForbidden, gin.H{"message": "Email não verificado. Verifique sua caixa de entrada.", "status": false, "emailNotVerified": true})
 			return
 		}
 

@@ -32,6 +32,9 @@ class MusicCubit extends Cubit<MusicState> {
   Duration get duration =>
       _audioHandler.mediaItem.value?.duration ?? Duration.zero;
 
+  Duration get currentPosition =>
+      _audioHandler.playbackState.value.updatePosition;
+
   Stream<PlaybackState> get playbackStateStream => _audioHandler.playbackState;
 
   List<MediaItem> get queue => _audioHandler.queue.value;
@@ -54,11 +57,12 @@ class MusicCubit extends Cubit<MusicState> {
 
   Future<void> setQueue(
       List<Music> queue, int currentIndex, String? playlistId) async {
-    await _musicService.setQueue(queue, currentIndex);
     _currentPlaylistId = playlistId ?? '';
+    await _musicService.setQueue(queue, currentIndex);
   }
 
   Future<void> addToQueue(Music music) async {
+    debugPrint('Adicionando à fila: ${music.url}');
     await _musicService.addToQueue(music);
     if (_audioHandler.queue.value.length == 1) {
       await _audioHandler.play();
@@ -72,6 +76,10 @@ class MusicCubit extends Cubit<MusicState> {
   Future<void> clearQueue() async {
     await _musicService.clearQueue();
   }
+
+  Future<void> play() async => await _audioHandler.play();
+
+  Future<void> pause() async => await _audioHandler.pause();
 
   Future<void> playPause() async {
     if (_audioHandler.playbackState.value.playing) {
@@ -87,6 +95,7 @@ class MusicCubit extends Cubit<MusicState> {
 
   Future<void> toggleShuffle() async {
     await _musicService.toggleShuffle();
+    emit(state);
   }
 
   Future<void> next() async => await _audioHandler.skipToNext();
@@ -135,9 +144,14 @@ class MusicCubit extends Cubit<MusicState> {
   }
 
   void _updateCurrentMusic(MediaItem mediaItem) {
-    final newColor = Color(
-      int.parse(mediaItem.extras!['color'].replaceFirst('#', '0xFF')),
-    );
-    themeCubit.updatePrimaryColor(newColor);
+    try {
+      final rawColor = (mediaItem.extras?['color'] ?? '').replaceAll('#', '');
+      if (rawColor.length == 6) {
+        final newColor = Color(int.parse('0xFF$rawColor'));
+        themeCubit.updatePrimaryColor(newColor);
+      }
+    } catch (_) {
+      // Ignore invalid color values
+    }
   }
 }

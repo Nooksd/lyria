@@ -28,7 +28,8 @@ class MusicPlaying extends MusicState {
   });
 
   @override
-  List<Object?> get props => [currentMusic, queue, currentIndex, isPlaying, isLoop, isShuffle];
+  List<Object?> get props =>
+      [currentMusic, queue, currentIndex, isPlaying, isLoop, isShuffle];
 }
 
 class MusicStopped extends MusicState {}

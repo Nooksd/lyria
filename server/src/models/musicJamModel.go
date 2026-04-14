@@ -13,13 +13,14 @@ type Participant struct {
 }
 
 type MusicJam struct {
-	ID           primitive.ObjectID   `json:"_id" bson:"_id,omitempty"`
-	SimpleID     string               `json:"simpleId" bson:"simpleId" validate:"required"`
-	OwnerID      primitive.ObjectID   `json:"ownerId" bson:"ownerId" validate:"required"`
-	Participants []Participant        `json:"participants" bson:"participants"`
-	Queue        []primitive.ObjectID `json:"queue" bson:"queue"`
-	Playing      bool                 `json:"playing" bson:"playing"`
-	TimeNow      int64                `json:"timeNow" bson:"timeNow"`
-	CreatedAt    time.Time            `json:"createdAt" bson:"createdAt"`
-	UpdatedAt    time.Time            `json:"updatedAt" bson:"updatedAt"`
+	ID             primitive.ObjectID   `json:"_id" bson:"_id,omitempty"`
+	SimpleID       string               `json:"simpleId" bson:"simpleId" validate:"required"`
+	OwnerID        primitive.ObjectID   `json:"ownerId" bson:"ownerId" validate:"required"`
+	Participants   []Participant        `json:"participants" bson:"participants"`
+	Queue          []primitive.ObjectID `json:"queue" bson:"queue"`
+	CurrentMusicId *primitive.ObjectID  `json:"currentMusicId" bson:"currentMusicId"`
+	Playing        bool                 `json:"playing" bson:"playing"`
+	TimeNow        float64              `json:"timeNow" bson:"timeNow"`
+	CreatedAt      time.Time            `json:"createdAt" bson:"createdAt"`
+	UpdatedAt      time.Time            `json:"updatedAt" bson:"updatedAt"`
 }

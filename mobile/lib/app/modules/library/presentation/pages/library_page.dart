@@ -3,25 +3,21 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
-import 'package:lyria/app/modules/auth/domain/entities/app_user.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/library/presentation/includes/playlists_include.dart';
-import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
 
 class LibraryPage extends StatelessWidget {
-  final AppUser? user = getIt<AuthCubit>().currentUser;
-  final AuthCubit authCubit = getIt<AuthCubit>();
-  final MusicCubit musicCubit = getIt<MusicCubit>();
+  const LibraryPage({super.key});
 
-  LibraryPage({super.key});
-
-  void _temp(BuildContext context) {
-    authCubit.logout(context);
+  void _goToDownloads(BuildContext context) {
+    context.push('/auth/ui/downloads');
   }
 
-  void _goToDownloads(BuildContext context) {}
-  void _goToFavorites(BuildContext context) {}
+  void _goToFavorites(BuildContext context) {
+    context.push('/auth/ui/favorites');
+  }
+
   void _goToAddPlaylist(BuildContext context) {
     context.push("/auth/ui/addPlaylist");
   }
@@ -29,6 +25,7 @@ class LibraryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final user = getIt<AuthCubit>().currentUser;
 
     return Scaffold(
       appBar: CustomAppBar(),
@@ -43,7 +40,7 @@ class LibraryPage extends StatelessWidget {
               children: [
                 if (user != null)
                   GestureDetector(
-                    onTap: () => _temp(context),
+                    onTap: () => context.push('/auth/ui/profile'),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(100),
                       child: Container(
@@ -52,10 +49,20 @@ class LibraryPage extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: Theme.of(context).colorScheme.primary,
                         ),
-                        child: CachedNetworkImage(
-                          imageUrl: user!.avatarUrl,
-                          fit: BoxFit.cover,
-                        ),
+                        child: user.avatarUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl: user.avatarUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => Container(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  child: const Icon(Icons.person, color: Colors.white54, size: 24),
+                                ),
+                                errorWidget: (_, __, ___) => Container(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  child: const Icon(Icons.person, color: Colors.white54, size: 24),
+                                ),
+                              )
+                            : Icon(Icons.person, color: Colors.white54, size: 24),
                       ),
                     ),
                   ),

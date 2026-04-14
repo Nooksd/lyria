@@ -29,7 +29,7 @@ class AppUser {
       userType: map['userType'] ?? "USER",
       avatarUrl: map['avatarUrl'],
       email: map['email'],
-      favorites: map['favorites'] ?? [],
+      favorites: List<String>.from(map['favorites'] ?? []),
     );
   }
 }

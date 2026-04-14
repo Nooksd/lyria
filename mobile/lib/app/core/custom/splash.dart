@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lottie/lottie.dart';
+import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/custom/splash_animation.dart';
+import 'package:lyria/app/core/themes/theme_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_states.dart';
 
 class SplashScreen extends StatelessWidget {
-  const SplashScreen({super.key});
+  final ThemeCubit themeCubit = getIt<ThemeCubit>();
+
+  SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +19,7 @@ class SplashScreen extends StatelessWidget {
         if (state is Authenticated) {
           context.go('/auth/ui/home');
         } else if (state is Unauthenticated) {
+          themeCubit.updatePrimaryColor(Colors.white);
           context.go('/auth/decide');
         } else if (state is AuthError) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -23,38 +28,7 @@ class SplashScreen extends StatelessWidget {
         }
       },
       builder: (context, state) {
-        return Scaffold(
-          body: SizedBox(
-            width: MediaQuery.sizeOf(context).width,
-            height: MediaQuery.sizeOf(context).height,
-            child: Stack(
-              children: [
-                Center(
-                  child: SizedBox(
-                    width: 150,
-                    child: Lottie.asset(
-                      'assets/animations/loading.json',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 50,
-                  child: SizedBox(
-                    width: 65,
-                    height: 35,
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+        return SplashAnimation();
       },
     );
   }

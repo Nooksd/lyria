@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
 
 class GenreTile extends StatelessWidget {
@@ -16,19 +17,21 @@ class GenreTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     double height = width * 1.13;
-    return CustomContainer(
-      width: width,
-      height: height,
-      child: Stack(
-        children: [
-          Positioned(
-            right: 0,
-            bottom: 0,
-            child: Image.asset(
-              image,
-              height: height * 0.9,
-              fit: BoxFit.contain,
-            ),
+    return GestureDetector(
+      onTap: () => context.push('/auth/ui/genre', extra: name),
+      child: CustomContainer(
+        width: width,
+        height: height,
+        child: Stack(
+          children: [
+            Positioned(
+              right: 0,
+              bottom: 0,
+              child: Image.asset(
+                image,
+                height: height * 0.9,
+                fit: BoxFit.contain,
+              ),
           ),
           Positioned(
             top: 25,
@@ -42,6 +45,7 @@ class GenreTile extends StatelessWidget {
             ),
           )
         ],
+      ),
       ),
     );
   }

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
@@ -33,7 +34,15 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
     playlistCubit.deletePlaylist(id);
   }
 
-  void _onShare() {}
+  void _onShare(Playlist playlist) async {
+    final link = 'lyria://playlist/${playlist.id}';
+    await Clipboard.setData(ClipboardData(text: link));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Link copiado!')),
+      );
+    }
+  }
 
   void _showBottomSheet(BuildContext context, Playlist playlist) {
     showModalBottomSheet(
@@ -72,7 +81,7 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                     title: const Text('Compartilhar'),
                     onTap: () {
                       Navigator.pop(context);
-                      _onShare();
+                      _onShare(playlist);
                     },
                   ),
                 ],
@@ -96,11 +105,10 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
     return BlocBuilder<PlaylistCubit, PlaylistState>(
       bloc: playlistCubit,
       builder: (context, state) {
-        if (state is PlaylistLoading) {
-          return const Center(child: CircularProgressIndicator());
-        }
+        List<Playlist> playlists = [];
         if (state is PlaylistLoaded) {
-          List<Playlist> playlists = state.playlists;
+          playlists = state.playlists;
+        }
 
           return RefreshIndicator(
             color: Theme.of(context).colorScheme.onPrimary,
@@ -121,7 +129,7 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: playlists.length + 2,
+                    itemCount: playlists.length + 1,
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
                       mainAxisSpacing: spacing,
@@ -145,11 +153,35 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                                   child: SizedBox(
                                     width: itemWidth,
                                     height: itemWidth,
-                                    child: CachedNetworkImage(
-                                      imageUrl:
-                                          '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
-                                      fit: BoxFit.cover,
-                                    ),
+                                    child: playlist.playlistCoverUrl.isNotEmpty
+                                        ? CachedNetworkImage(
+                                            imageUrl:
+                                                '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
+                                            cacheKey: playlist.playlistCoverUrl,
+                                            fit: BoxFit.cover,
+                                            placeholder: (_, __) => Container(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                            ),
+                                            errorWidget: (_, __, ___) =>
+                                                Container(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                              child: const Icon(
+                                                  CustomIcons.list,
+                                                  color: Colors.white54),
+                                            ),
+                                          )
+                                        : Container(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            child: const Icon(
+                                                CustomIcons.list,
+                                                color: Colors.white54),
+                                          ),
                                   ),
                                 ),
                               ),
@@ -168,7 +200,7 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                                 ),
                               ),
                               Text(
-                                '${playlist.musics.length} Músicas',
+                                '${playlist.totalMusics} Músicas',
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: Theme.of(context)
@@ -180,45 +212,10 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                             ],
                           ),
                         );
-                      } else if (index == playlists.length) {
-                        return GestureDetector(
-                          onTap: () {},
-                          child: Column(
-                            children: [
-                              CustomContainer(
-                                width: itemWidth,
-                                height: itemWidth,
-                                borderRadius: 100,
-                                child: Center(
-                                  child: Icon(
-                                    CustomIcons.plus_thick,
-                                    size: 30,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 5),
-                              SizedBox(
-                                width: itemWidth,
-                                child: Text(
-                                  "Adicionar Artista",
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
                       } else {
                         // Botão "Adicionar Playlist"
                         return GestureDetector(
-                          onTap: () {},
+                          onTap: () => context.push('/auth/ui/addPlaylist'),
                           child: Column(
                             children: [
                               CustomContainer(
@@ -259,8 +256,6 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
               ),
             ),
           );
-        }
-        return const SizedBox.shrink();
       },
     );
   }

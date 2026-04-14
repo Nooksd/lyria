@@ -4,11 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:lyria/app/app_router.dart';
-import 'package:lyria/app/core/services/download/download_service.dart';
-// import 'package:lyria/app/core/services/download/download_service.dart';
-// import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
+import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/themes/theme_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
+import 'package:lyria/app/modules/download/data/api_download_repo.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 
@@ -28,6 +27,9 @@ class AppWidget extends StatelessWidget {
 
     return MultiBlocProvider(
       providers: [
+        BlocProvider<ConnectivityCubit>(
+          create: (context) => getIt<ConnectivityCubit>(),
+        ),
         BlocProvider<AuthCubit>(
           create: (context) => getIt<AuthCubit>(),
         ),
@@ -36,7 +38,7 @@ class AppWidget extends StatelessWidget {
         ),
         BlocProvider<DownloadCubit>(
           create: (context) => DownloadCubit(
-            downloadService: context.read<DownloadService>(),
+            downloadRepo: getIt<ApiDownloadRepo>(),
           ),
         ),
         BlocProvider<MusicCubit>(

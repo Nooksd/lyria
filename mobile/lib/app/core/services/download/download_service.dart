@@ -24,8 +24,18 @@ class DownloadService {
 
   Future<File> downloadFile(String url, String fileName) async {
     final filePath = await getFilePath(fileName);
-    print(filePath);
     await http.download(url, filePath);
     return File(filePath);
+  }
+
+  Future<List<String>> listDownloadedFileNames() async {
+    final dir = Directory(await getDownloadDirectory());
+    if (!await dir.exists()) return [];
+    return dir
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.mp3'))
+        .map((f) => f.uri.pathSegments.last)
+        .toList();
   }
 }

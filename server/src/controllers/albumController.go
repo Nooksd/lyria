@@ -99,9 +99,13 @@ func GetAlbum() gin.HandlerFunc {
 			return
 		}
 
+		var artist model.Artist
+		_ = artistCollection.FindOne(ctx, bson.M{"_id": album.ArtistID}).Decode(&artist)
+
 		response := gin.H{
-			"album":  album,
-			"musics": musics,
+			"album":      album,
+			"musics":     musics,
+			"artistName": artist.Name,
 		}
 
 		c.JSON(http.StatusOK, response)
@@ -181,9 +185,9 @@ func DeleteAlbum() gin.HandlerFunc {
 
 		var album model.Album
 
-		err = artistCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&album)
+		err = albumCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&album)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar artista"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar álbum"})
 			return
 		}
 

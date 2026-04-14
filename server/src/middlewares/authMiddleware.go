@@ -16,11 +16,14 @@ func Authenticate() gin.HandlerFunc {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			authHeader, _ = c.Cookie("accessToken")
-			if authHeader == "" {
-				c.JSON(http.StatusUnauthorized, gin.H{"error": "Token não fornecido"})
-				c.Abort()
-				return
-			}
+		}
+		if authHeader == "" {
+			authHeader = c.Query("token")
+		}
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token não fornecido"})
+			c.Abort()
+			return
 		}
 
 		token, err := jwt.Parse(authHeader, func(token *jwt.Token) (interface{}, error) {

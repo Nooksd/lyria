@@ -25,7 +25,8 @@ class LyricsTile extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary,
-        borderRadius: isFullScreen ? BorderRadius.zero : BorderRadius.circular(30),
+        borderRadius:
+            isFullScreen ? BorderRadius.zero : BorderRadius.circular(30),
       ),
       child: SafeArea(
         child: Padding(
@@ -57,7 +58,9 @@ class LyricsTile extends StatelessWidget {
                           color: Theme.of(context).colorScheme.onPrimary,
                         ),
                         child: Icon(
-                          isFullScreen ? CustomIcons.expand : CustomIcons.expand,
+                          isFullScreen
+                              ? CustomIcons.expand
+                              : CustomIcons.expand,
                           size: 16,
                           color: Theme.of(context).colorScheme.primary,
                         ),
@@ -72,22 +75,25 @@ class LyricsTile extends StatelessWidget {
                   stream: positionStream,
                   builder: (context, snapshot) {
                     final position = snapshot.data ?? Duration.zero;
-        
+
                     return ListView.builder(
                       controller: scrollController,
                       physics: const ClampingScrollPhysics(),
                       itemCount: lyrics!.length,
                       itemBuilder: (context, index) {
                         final lyricLine = lyrics![index];
-                        final hasPassedLine = position >= lyricLine.timeAsDuration;
-        
+                        final hasPassedLine =
+                            position >= lyricLine.timeAsDuration;
+
                         if (hasPassedLine &&
                             index < lyrics!.length - 1 &&
                             position < lyrics![index + 1].timeAsDuration) {
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             final desiredPosition = (index * 55.0);
-                            final maxScroll = scrollController.position.maxScrollExtent;
-                            final scrollPosition = desiredPosition.clamp(0.0, maxScroll);
+                            final maxScroll =
+                                scrollController.position.maxScrollExtent;
+                            final scrollPosition =
+                                desiredPosition.clamp(0.0, maxScroll);
 
                             scrollController.animateTo(
                               scrollPosition,
@@ -96,7 +102,7 @@ class LyricsTile extends StatelessWidget {
                             );
                           });
                         }
-        
+
                         return SizedBox(
                           height: 55,
                           child: Text(
@@ -105,7 +111,9 @@ class LyricsTile extends StatelessWidget {
                               fontSize: 20,
                               color: hasPassedLine
                                   ? Theme.of(context).colorScheme.onPrimary
-                                  : Theme.of(context).colorScheme.primaryContainer,
+                                  : Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
                             ),
                           ),
                         );

@@ -1,0 +1,60 @@
+services:
+  lyria-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: lyria-server
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    env_file:
+      - ./server/.env
+    environment:
+      - ENVIRONMENT=production
+    volumes:
+      - server-uploads:/app/uploads
+    networks:
+      - lyria-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9000/favicon.ico"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  lyria-admin:
+    build:
+      context: ./admin
+      dockerfile: Dockerfile
+    container_name: lyria-admin
+    restart: unless-stopped
+    depends_on:
+      lyria-server:
+        condition: service_healthy
+    networks:
+      - lyria-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: lyria-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      lyria-server:
+        condition: service_healthy
+      lyria-admin:
+        condition: service_started
+    networks:
+      - lyria-network
+
+volumes:
+  server-uploads:
+
+networks:
+  lyria-network:
+    driver: bridge

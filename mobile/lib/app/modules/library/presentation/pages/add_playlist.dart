@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lottie/lottie.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
@@ -19,6 +20,7 @@ class _AddPlaylistState extends State<AddPlaylist> {
   final PlaylistCubit cubit = getIt<PlaylistCubit>();
   final TextEditingController _playlistName = TextEditingController();
   File? selectedImage;
+  bool isLoading = false;
 
   Future<void> pickImage() async {
     final picker = ImagePicker();
@@ -32,13 +34,15 @@ class _AddPlaylistState extends State<AddPlaylist> {
   }
 
   Future<void> _createPlaylist() async {
-    if (selectedImage != null) {
-      cubit.createPlaylist(_playlistName.text, selectedImage!);
-    } else {
-      cubit.createPlaylist(_playlistName.text, null);
-    }
+    setState(() {
+      isLoading = true;
+    });
 
-    context.pop();
+    await cubit.createPlaylist(_playlistName.text, selectedImage);
+
+    if (mounted) {
+      context.pop();
+    }
   }
 
   @override
@@ -162,6 +166,25 @@ class _AddPlaylistState extends State<AddPlaylist> {
                 ),
               ),
             ),
+            if (isLoading)
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  child: Center(
+                    child: SizedBox(
+                      width: 150,
+                      child: Lottie.asset(
+                        'assets/animations/loading.json',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

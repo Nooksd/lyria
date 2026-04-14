@@ -12,11 +12,11 @@ class DioClient implements MyHttpClient {
   MyLocalStorage storage;
 
   DioClient({required this.storage}) {
-    dio.options.baseUrl = 'http://192.168.1.20:9000';
+    dio.options.baseUrl = 'http://192.168.1.101:9000';
 
-    dio.options.validateStatus = (status) {
-      return status != null && status >= 200 && status < 300;
-    };
+    // Accept all responses (including 4xx) so we can handle them manually.
+    // 401 on non-login requests is rejected in onResponse to trigger token refresh.
+    dio.options.validateStatus = (status) => status != null;
 
     dio.options.receiveDataWhenStatusError = true;
     dio.options.followRedirects = true;
@@ -35,7 +35,9 @@ class DioClient implements MyHttpClient {
           return handler.next(options);
         },
         onResponse: (response, handler) async {
-          if (response.statusCode == 401) {
+          // Reject 401 on protected routes so the error handler can refresh the token
+          if (response.statusCode == 401 &&
+              !response.requestOptions.path.contains('/auth/')) {
             return handler.reject(
               DioException(
                 requestOptions: response.requestOptions,
@@ -130,7 +132,9 @@ class DioClient implements MyHttpClient {
         "status": response.statusCode,
       };
     } catch (e) {
-      rethrow;
+      return {
+        "error": e.toString(),
+      };
     }
   }
 
@@ -138,26 +142,14 @@ class DioClient implements MyHttpClient {
   Future<dynamic> post(String url, {dynamic data}) async {
     try {
       final response = await dio.post(url, data: data);
-
       return {
         "data": response.data,
         "status": response.statusCode,
       };
     } catch (e) {
-      rethrow;
-    }
-  }
-
-  @override
-  Future<dynamic> put(String url, {dynamic data}) async {
-    try {
-      final response = await dio.put(url, data: data);
       return {
-        "data": response.data,
-        "status": response.statusCode,
+        "error": e.toString(),
       };
-    } catch (e) {
-      rethrow;
     }
   }
 
@@ -185,7 +177,24 @@ class DioClient implements MyHttpClient {
         "status": response.statusCode,
       };
     } catch (e) {
-      rethrow;
+      return {
+        "error": e.toString(),
+      };
+    }
+  }
+
+  @override
+  Future<dynamic> put(String url, {dynamic data}) async {
+    try {
+      final response = await dio.put(url, data: data);
+      return {
+        "data": response.data,
+        "status": response.statusCode,
+      };
+    } catch (e) {
+      return {
+        "error": e.toString(),
+      };
     }
   }
 

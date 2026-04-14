@@ -204,7 +204,7 @@ func StreamMusic() gin.HandlerFunc {
 func downloadMusic(url string, id string) bool {
 	outputPath := fmt.Sprintf("./uploads/music/%s.%%(ext)s", id)
 
-	cmd := exec.Command("yt-dlp.exe", "-f", "bestaudio[ext=m4a]", "-o", outputPath, url)
+	cmd := exec.Command("yt-dlp", "-f", "bestaudio[ext=m4a]", "-o", outputPath, url)
 
 	err := cmd.Run()
 

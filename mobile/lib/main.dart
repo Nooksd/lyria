@@ -1,12 +1,14 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lyria/app/core/services/connectivity/connectivity_service.dart';
 import 'package:lyria/app/core/services/download/download_service.dart';
 import 'package:lyria/app/core/services/http/dio_client.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/music/music_service.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/core/services/storege/shared_preferences_client.dart';
+import 'package:lyria/app/core/services/sync/sync_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app/service_locator.dart';
@@ -51,6 +53,10 @@ Future<void> main() async {
   );
 
   setupLocator(audioHandler);
+
+  // Init connectivity and sync
+  await getIt<ConnectivityService>().init();
+  getIt<SyncService>().init();
 
   runApp(const AppWidget());
 }

@@ -36,6 +36,11 @@ class NavigatorPageState extends State<NavigatorPage> {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, dynamic result) {
+        if (didPop) return;
+        if (GoRouter.of(context).canPop()) {
+          context.pop();
+          return;
+        }
         if (_selectedIndex != 0) {
           _navigateBottomBar(0);
         } else {

@@ -10,3 +10,5 @@ class DownloadState extends Equatable {
 }
 
 enum DownloadStatus { notDownloaded, downloading, downloaded, error }
+
+enum PlaylistDownloadStatus { notDownloaded, downloading, downloaded }

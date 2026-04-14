@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	database "server/src/db"
@@ -46,6 +47,7 @@ func CreateArtist() gin.HandlerFunc {
 
 		artist.ID = primitive.NewObjectID()
 		artist.AvatarUrl = "/image/avatar/" + artist.ID.Hex()
+		artist.BannerUrl = "/image/banner/" + artist.ID.Hex()
 		artist.CreatedAt = time.Now()
 		artist.UpdatedAt = artist.CreatedAt
 
@@ -81,6 +83,14 @@ func GetArtist() gin.HandlerFunc {
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Artista não encontrado"})
 			return
+		}
+
+		serverURL := os.Getenv("SERVER_URL")
+		if artist.AvatarUrl != "" {
+			artist.AvatarUrl = serverURL + artist.AvatarUrl
+		}
+		if artist.BannerUrl != "" {
+			artist.BannerUrl = serverURL + artist.BannerUrl
 		}
 
 		var albums []model.Album
@@ -161,6 +171,12 @@ func UpdateArtist() gin.HandlerFunc {
 		if updateData.AvatarUrl != "" {
 			currentArtist.AvatarUrl = updateData.AvatarUrl
 		}
+		if updateData.BannerUrl != "" {
+			currentArtist.BannerUrl = updateData.BannerUrl
+		}
+		if updateData.Bio != "" {
+			currentArtist.Bio = updateData.Bio
+		}
 
 		currentArtist.UpdatedAt = time.Now()
 
@@ -196,6 +212,23 @@ func DeleteArtist() gin.HandlerFunc {
 		err = artistCollection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&artist)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar artista"})
+			return
+		}
+
+		// Delete all music files for this artist
+		cursor, err := musicCollection.Find(ctx, bson.M{"artistId": objectID})
+		if err == nil {
+			var musics []model.Music
+			if err := cursor.All(ctx, &musics); err == nil {
+				for _, m := range musics {
+					os.Remove("./uploads/music/" + m.ID.Hex() + ".m4a")
+				}
+			}
+		}
+
+		_, err = musicCollection.DeleteMany(ctx, bson.M{"artistId": objectID})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar músicas"})
 			return
 		}
 

@@ -4,10 +4,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
+import 'package:lyria/app/core/services/cache/favorites_cache.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
 import 'package:lyria/app/modules/common/seek_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/modules/download/presentation/includes/download_icon.dart';
+import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
 import 'package:lyria/app/modules/music/presentation/includes/lyrics_tile.dart';
@@ -22,17 +24,52 @@ class MusicPage extends StatefulWidget {
 class _MusicPageState extends State<MusicPage> {
   final MusicCubit cubit = getIt<MusicCubit>();
   final DownloadCubit downloadCubit = getIt<DownloadCubit>();
+  final FavoritesCache favoritesCache = getIt<FavoritesCache>();
 
   var _isLyricsExpanded = false;
   final ScrollController _lyricsScrollController = ScrollController();
+  final Set<String> _favoritedIds = {};
+  List<Music> _cachedFavorites = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavoritedIds();
+  }
+
+  Future<void> _loadFavoritedIds() async {
+    final cached = await favoritesCache.getCachedFavorites();
+    if (mounted) {
+      setState(() {
+        _cachedFavorites = cached;
+        _favoritedIds.addAll(cached.map((m) => m.id));
+      });
+    }
+  }
 
   void _onPlayPause() {
     cubit.playPause();
   }
 
-  void _onFavoriteToggle() {}
-  void _onDownload(String id, String url) {
-    downloadCubit.downloadMusic(id, url);
+  Future<void> _onFavoriteToggle(Music music) async {
+    final wasFav = _favoritedIds.contains(music.id);
+    setState(() {
+      if (wasFav) {
+        _favoritedIds.remove(music.id);
+      } else {
+        _favoritedIds.add(music.id);
+      }
+    });
+
+    final updated = await favoritesCache.toggleFavorite(music, _cachedFavorites);
+    if (mounted) {
+      setState(() {
+        _cachedFavorites = updated;
+      });
+    }
+  }
+  void _onDownload(Music music) {
+    downloadCubit.downloadMusic(music);
   }
 
   void _onSkip() {
@@ -112,7 +149,7 @@ class _MusicPageState extends State<MusicPage> {
           final isPlaying = state.isPlaying;
           final isLoop = state.isLoop;
           final isShuffle = state.isShuffle;
-          final lyrics = music.lyrics;
+          final lyrics = music.lyrics ?? [];
 
           return Scaffold(
             body: CustomContainer(
@@ -120,7 +157,7 @@ class _MusicPageState extends State<MusicPage> {
               height: screenHeight,
               child: SafeArea(
                 child: SingleChildScrollView(
-                  physics: lyrics != null
+                  physics: lyrics.isNotEmpty
                       ? const ClampingScrollPhysics()
                       : const NeverScrollableScrollPhysics(),
                   child: Column(
@@ -194,6 +231,13 @@ class _MusicPageState extends State<MusicPage> {
                                   child: CachedNetworkImage(
                                     imageUrl: music.coverUrl,
                                     fit: BoxFit.cover,
+                                    placeholder: (_, __) => Container(
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                    errorWidget: (_, __, ___) => Container(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      child: const Icon(Icons.music_note, size: 80, color: Colors.white54),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -237,17 +281,22 @@ class _MusicPageState extends State<MusicPage> {
                                 ),
                                 Spacer(),
                                 GestureDetector(
-                                  onTap: _onFavoriteToggle,
+                                  onTap: () => _onFavoriteToggle(music),
                                   child: Icon(
-                                    CustomIcons.heart_outline,
+                                    _favoritedIds.contains(music.id)
+                                        ? Icons.favorite
+                                        : CustomIcons.heart_outline,
                                     size: 22,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
+                                    color: _favoritedIds.contains(music.id)
+                                        ? Theme.of(context).colorScheme.primary
+                                        : Theme.of(context)
+                                            .colorScheme
+                                            .onSurface,
                                   ),
                                 ),
                                 SizedBox(width: 20),
                                 GestureDetector(
-                                  onTap: () => _onDownload(music.id, music.url),
+                                  onTap: () => _onDownload(music),
                                   child: DownloadIcon(
                                       musicId: music.id, width: 22, height: 22),
                                 ),
@@ -403,32 +452,34 @@ class _MusicPageState extends State<MusicPage> {
                           ],
                         ),
                       ),
-                      Container(
-                        width: screenWidth * 0.85,
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.primary,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 20,
+                      SizedBox(height: 20),
+                      if (lyrics.isNotEmpty)
+                        Container(
+                          width: screenWidth * 0.85,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary,
+                            borderRadius: BorderRadius.circular(30),
                           ),
-                          child: Column(
-                            children: [
-                              SizedBox(
-                                height: 300,
-                                child: LyricsTile(
-                                  lyrics: state.currentMusic.lyrics,
-                                  positionStream: cubit.positionStream,
-                                  scrollController: _lyricsScrollController,
-                                  close: _openLyrics,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 20,
+                              vertical: 20,
+                            ),
+                            child: Column(
+                              children: [
+                                SizedBox(
+                                  height: 300,
+                                  child: LyricsTile(
+                                    lyrics: state.currentMusic.lyrics,
+                                    positionStream: cubit.positionStream,
+                                    scrollController: _lyricsScrollController,
+                                    close: _openLyrics,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
-                      ),
                     ],
                   ),
                 ),

@@ -9,6 +9,7 @@ import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/auth/presentation/pages/decide_page.dart';
 import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
 import 'package:lyria/app/modules/explorer/presentation/pages/explorer_page.dart';
+import 'package:lyria/app/modules/explorer/presentation/pages/genre_page.dart';
 import 'package:lyria/app/modules/home/presentation/pages/home_page.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
@@ -18,6 +19,11 @@ import 'package:lyria/app/modules/library/presentation/pages/playlist_page.dart'
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/library/presentation/pages/add_music.dart';
 import 'package:lyria/app/modules/music/presentation/pages/music_page.dart';
+import 'package:lyria/app/modules/musicjam/presentation/pages/musicjam_page.dart';
+import 'package:lyria/app/modules/profile/presentation/pages/profile_page.dart';
+import 'package:lyria/app/modules/settings/presentation/pages/settings_page.dart';
+import 'package:lyria/app/modules/favorites/presentation/pages/favorites_page.dart';
+import 'package:lyria/app/modules/download/presentation/pages/downloads_page.dart';
 import 'package:lyria/app/modules/ui/includes/navigator_page.dart';
 import 'package:flutter/material.dart';
 
@@ -36,7 +42,7 @@ class AppRouter {
         pageBuilder: (context, state) => NoTransitionPage(
           child: BlocProvider.value(
             value: getIt<AuthCubit>()..checkAuth(),
-            child: const SplashScreen(),
+            child: SplashScreen(),
           ),
         ),
       ),
@@ -128,13 +134,49 @@ class AppRouter {
           GoRoute(
             path: '/auth/ui/album',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: AlbumPage(),
+              child: AlbumPage(albumId: state.extra as String),
             ),
           ),
           GoRoute(
             path: '/auth/ui/artist',
             pageBuilder: (context, state) => NoTransitionPage(
-              child: ArtistPage(),
+              child: ArtistPage(artistId: state.extra as String),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/genre',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: GenrePage(genre: state.extra as String),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/profile',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const ProfilePage(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/favorites',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const FavoritesPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/downloads',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const DownloadsPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/settings',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const SettingsPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/musicjam',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: MusicJamPage(),
             ),
           ),
           GoRoute(

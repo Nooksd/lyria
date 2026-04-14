@@ -1,0 +1,2 @@
+C:/Users/SUPORTE/Documents/CODE/lyria/mobile/android/app/.cxx/RelWithDebInfo/q673p4j6/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/SUPORTE/Documents/CODE/lyria/mobile/android/app/.cxx/RelWithDebInfo/q673p4j6/armeabi-v7a/CMakeFiles/rebuild_cache.dir

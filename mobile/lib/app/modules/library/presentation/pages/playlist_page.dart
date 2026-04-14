@@ -4,16 +4,53 @@ import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
+import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
+import 'package:lyria/app/modules/download/presentation/cubits/download_states.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/components/playlist_control.dart';
 import 'package:lyria/app/modules/library/presentation/components/playlist_musics_builder.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 
-class PlaylistPage extends StatelessWidget {
+class PlaylistPage extends StatefulWidget {
   final Playlist playlist;
-  final PlaylistCubit playlistCubit = getIt<PlaylistCubit>();
 
-  PlaylistPage({super.key, required this.playlist});
+  const PlaylistPage({super.key, required this.playlist});
+
+  @override
+  State<PlaylistPage> createState() => _PlaylistPageState();
+}
+
+class _PlaylistPageState extends State<PlaylistPage> {
+  final PlaylistCubit playlistCubit = getIt<PlaylistCubit>();
+  final DownloadCubit downloadCubit = getIt<DownloadCubit>();
+  late Playlist _currentPlaylist;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentPlaylist = widget.playlist;
+  }
+
+  void _onPlaylistUpdated(Playlist updated) {
+    setState(() => _currentPlaylist = updated);
+  }
+
+  Future<void> _onRemoveMusic(String musicId) async {
+    final wasFullyDownloaded =
+        downloadCubit.getPlaylistStatus(
+              _currentPlaylist.musics.map((m) => m.id).toList(),
+            ) ==
+            PlaylistDownloadStatus.downloaded;
+
+    final updated = await playlistCubit.removeMusicFromPlaylist(
+        _currentPlaylist, musicId);
+    if (updated != null && mounted) {
+      setState(() => _currentPlaylist = updated);
+      if (wasFullyDownloaded) {
+        downloadCubit.deleteMusic(musicId);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +67,7 @@ class PlaylistPage extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.start,
             children: [
-              SizedBox(height: 30),
+              const SizedBox(height: 30),
               Center(
                 child: Column(
                   children: [
@@ -44,47 +81,57 @@ class PlaylistPage extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(height: 30),
+              const SizedBox(height: 30),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-                child: SizedBox(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 25,
-                        height: 30,
-                        child: IconButton(
-                          onPressed: () => context.pop(),
-                          icon: Icon(
-                            CustomIcons.goback,
-                            size: 25,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 25,
+                      height: 30,
+                      child: IconButton(
+                        onPressed: () => context.pop(),
+                        icon: Icon(
+                          CustomIcons.goback,
+                          size: 25,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: SizedBox(
-                          width: screenWidth * 0.6,
-                          height: screenWidth * 0.6,
-                          child: CachedNetworkImage(
-                            imageUrl:
-                                '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+                    ),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: SizedBox(
+                        width: screenWidth * 0.6,
+                        height: screenWidth * 0.6,
+                        child: _currentPlaylist.playlistCoverUrl.isNotEmpty
+                            ? CachedNetworkImage(
+                                imageUrl:
+                                    '${_currentPlaylist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
+                                cacheKey: _currentPlaylist.playlistCoverUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => Container(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                errorWidget: (_, __, ___) => Container(
+                                  color: Theme.of(context).colorScheme.primary,
+                                  child: const Icon(CustomIcons.list,
+                                      size: 60, color: Colors.white54),
+                                ),
+                              )
+                            : Container(
+                                color: Theme.of(context).colorScheme.primary,
+                                child: const Icon(CustomIcons.list,
+                                    size: 60, color: Colors.white54),
+                              ),
                       ),
-                      SizedBox(
-                        width: 30,
-                        height: 30,
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 30, height: 30),
+                  ],
                 ),
               ),
-              SizedBox(height: 15),
+              const SizedBox(height: 15),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: Column(
@@ -92,14 +139,14 @@ class PlaylistPage extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.start,
                   children: [
                     Text(
-                      playlist.name,
+                      _currentPlaylist.name,
                       style: TextStyle(
                         fontSize: 20,
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                     Text(
-                      '${playlist.musics.length} música${playlist.musics.length > 1 ? 's' : ''}',
+                      '${_currentPlaylist.musics.length} música${_currentPlaylist.musics.length != 1 ? 's' : ''}',
                       style: TextStyle(
                         fontSize: 16,
                         color: Theme.of(context)
@@ -108,15 +155,16 @@ class PlaylistPage extends StatelessWidget {
                             .withValues(alpha: 0.6),
                       ),
                     ),
-                    SizedBox(height: 15),
+                    const SizedBox(height: 15),
                     PlaylistControl(
-                      musics: playlist.musics,
-                      playlistId: playlist.id,
+                      playlist: _currentPlaylist,
+                      onPlaylistUpdated: _onPlaylistUpdated,
                     ),
-                    SizedBox(height: 15),
+                    const SizedBox(height: 15),
                     PlaylistMusicsBuilder(
-                      musics: playlist.musics,
-                      playlistId: playlist.id,
+                      musics: _currentPlaylist.musics,
+                      playlistId: _currentPlaylist.id,
+                      onRemoveMusic: _onRemoveMusic,
                     ),
                   ],
                 ),
@@ -128,3 +176,4 @@ class PlaylistPage extends StatelessWidget {
     );
   }
 }
+

@@ -6,6 +6,7 @@ abstract class PlaylistRepo {
   Future<List<Playlist>> getPlaylists(bool hasToFetch);
   Future<Playlist> getPlaylist(String id);
   Future<Playlist?> createPlaylist(String name);
+  Future<Playlist?> createPlaylistWithImage(String name, File imageCover);
   Future<Playlist> updatePlaylist(Playlist playlist);
   Future<void> deletePlaylist(String id);
   Future<bool> uploadPlaylistCover(String playlistId, File imageCover);

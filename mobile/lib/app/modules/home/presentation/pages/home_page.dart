@@ -92,10 +92,11 @@ class _HomePageState extends State<HomePage>
 
         return Scaffold(
           appBar: CustomAppBar(),
-          body: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
+          body: SingleChildScrollView(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
               SizedBox(height: 45),
               if (state is MusicPlaying) QueueTile(),
               Padding(
@@ -211,6 +212,7 @@ class _HomePageState extends State<HomePage>
                 ),
               ),
             ],
+            ),
           ),
         );
       },
