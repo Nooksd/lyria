@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	controller "server/src/controllers"
 	"server/src/middlewares"
 	"server/src/routes"
 	websocketmanager "server/src/websocket"
@@ -32,6 +33,8 @@ func main() {
 	router.Use(middlewares.CORS())
 
 	go websocketmanager.ManagerInstance.Run()
+
+	controller.StartImportWorker()
 
 	routes.AuthRoutes(router)
 	routes.ImageRoutes(router)

@@ -308,10 +308,16 @@ jobs:
               location /api/ {
                   limit_req  zone=api burst=20 nodelay;
                   proxy_pass http://127.0.0.1:9000/;
+                  proxy_http_version 1.1;
                   proxy_set_header Host $host;
                   proxy_set_header X-Real-IP $remote_addr;
                   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
                   proxy_set_header X-Forwarded-Proto $scheme;
+
+                  proxy_buffering off;
+                  proxy_cache off;
+                  proxy_read_timeout 86400s;
+                  proxy_send_timeout 86400s;
               }
 
               location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
@@ -327,41 +333,6 @@ jobs:
 
             echo "Nginx configured"
           NGINX
-
-      - name: Setup SSL certificates
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'SSL'
-            set -e
-
-            # Install certbot if needed
-            if ! command -v certbot &>/dev/null; then
-              echo "Installing certbot..."
-              sudo -n apt-get update
-              sudo -n apt-get install -y certbot python3-certbot-nginx
-            fi
-
-            # Check if certs already exist
-            if [ ! -f /etc/letsencrypt/live/lyria.risadev.com/fullchain.pem ]; then
-              echo "Obtaining SSL certificates..."
-              sudo -n certbot --nginx \
-                -d lyria.risadev.com \
-                -d admin.lyria.risadev.com \
-                --non-interactive \
-                --agree-tos \
-                --email ${{ secrets.SMTP_USER }} \
-                --redirect || {
-                  echo "Certbot failed — creating self-signed certs for now..."
-                  sudo -n mkdir -p /etc/letsencrypt/live/lyria.risadev.com
-                  sudo -n openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
-                    -keyout /etc/letsencrypt/live/lyria.risadev.com/privkey.pem \
-                    -out /etc/letsencrypt/live/lyria.risadev.com/fullchain.pem \
-                    -subj "/CN=lyria.risadev.com"
-                }
-            else
-              echo "SSL certs already exist, renewing if needed..."
-              sudo -n certbot renew --quiet || true
-            fi
-          SSL
 
       - name: Test nginx and restart services
         run: |
@@ -385,6 +356,32 @@ jobs:
 
             echo "Deployment complete!"
           RESTART
+
+      - name: Ensure SSL certificates
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'SSL'
+            set -e
+
+            # Install certbot if not present
+            if ! command -v certbot &>/dev/null; then
+              echo "Installing certbot..."
+              sudo -n apt-get update
+              sudo -n apt-get install -y certbot python3-certbot-nginx
+            fi
+
+            # Request/renew certs for both domains
+            sudo -n certbot --nginx \
+              -d lyria.risadev.com \
+              -d admin.lyria.risadev.com \
+              --non-interactive --agree-tos \
+              --email contato@risadev.com \
+              --redirect || true
+
+            echo "SSL certificates OK"
+
+            # Reload nginx to pick up any cert changes
+            sudo -n systemctl reload nginx
+          SSL
 
       - name: Health check
         run: |

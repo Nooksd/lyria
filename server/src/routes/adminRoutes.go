@@ -57,5 +57,12 @@ func AdminRoutes(router *gin.Engine) {
 
 		// Spotify import
 		adminProtected.GET("/import/spotify", controller.ImportFromSpotify())
+
+		// Import queue
+		adminProtected.POST("/import/jobs", controller.CreateImportJobs())
+		adminProtected.GET("/import/jobs", controller.ListImportJobs())
+		adminProtected.GET("/import/jobs/:jobId", controller.GetImportJob())
+		adminProtected.POST("/import/jobs/:jobId/cancel", controller.CancelImportJob())
+		adminProtected.GET("/import/jobs/:jobId/logs", controller.StreamImportJobLogs())
 	}
 }

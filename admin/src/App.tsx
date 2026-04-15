@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Artists from './pages/Artists';
 import ArtistDetail from './pages/ArtistDetail';
 import AlbumDetail from './pages/AlbumDetail';
+import Imports from './pages/Imports';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -24,6 +25,7 @@ function AppRoutes() {
         <Route path="/artists" element={<Artists />} />
         <Route path="/artists/:artistId" element={<ArtistDetail />} />
         <Route path="/artists/:artistId/albums/:albumId" element={<AlbumDetail />} />
+        <Route path="/imports" element={<Imports />} />
       </Route>
       <Route path="*" element={<Navigate to="/artists" replace />} />
     </Routes>

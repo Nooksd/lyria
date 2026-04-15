@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { API_BASE } from '../lib/api';
+import api from '../lib/api';
 import { useToast, ToastContainer } from '../components/Toast';
 
 interface Artist {
@@ -38,12 +38,8 @@ export default function Artists() {
 
   // Spotify import state
   const [importModal, setImportModal] = useState(false);
-  const [spotifyUrl, setSpotifyUrl] = useState('');
-  const [importing, setImporting] = useState(false);
-  const [importDone, setImportDone] = useState(false);
-  const [importLog, setImportLog] = useState<{ type: string; message: string }[]>([]);
-  const [importProgress, setImportProgress] = useState<{ current: number; total: number } | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
+  const [spotifyUrls, setSpotifyUrls] = useState<string[]>(['']);
+  const [importSubmitting, setImportSubmitting] = useState(false);
 
   const limit = 20;
 
@@ -142,77 +138,35 @@ export default function Artists() {
 
   const totalPages = Math.ceil(total / limit);
 
+  const addUrlField = () => {
+    setSpotifyUrls([...spotifyUrls, '']);
+  };
+
+  const removeUrlField = (idx: number) => {
+    if (spotifyUrls.length <= 1) return;
+    setSpotifyUrls(spotifyUrls.filter((_, i) => i !== idx));
+  };
+
+  const updateUrl = (idx: number, value: string) => {
+    const updated = [...spotifyUrls];
+    updated[idx] = value;
+    setSpotifyUrls(updated);
+  };
+
   const startImport = async () => {
-    if (!spotifyUrl.trim()) return;
-    setImporting(true);
-    setImportDone(false);
-    setImportLog([]);
-    setImportProgress(null);
+    const urls = spotifyUrls.map(u => u.trim()).filter(u => u.length > 0);
+    if (urls.length === 0) return;
 
+    setImportSubmitting(true);
     try {
-      const token = localStorage.getItem('admin_token') || '';
-      const response = await fetch(
-        `${API_BASE}/admin/import/spotify?url=${encodeURIComponent(spotifyUrl.trim())}`,
-        { headers: { Authorization: token } }
-      );
-
-      if (!response.ok || !response.body) {
-        setImportLog([{ type: 'error', message: 'Erro de conexão com o servidor' }]);
-        setImporting(false);
-        setImportDone(true);
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const parts = buffer.split('\n\n');
-        buffer = parts.pop() || '';
-
-        for (const part of parts) {
-          const lines = part.split('\n');
-          let eventType = 'progress';
-          let data = '';
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) eventType = line.slice(7);
-            else if (line.startsWith('data: ')) data = line.slice(6);
-          }
-
-          if (!data) continue;
-
-          try {
-            const parsed = JSON.parse(data);
-            setImportLog((prev) => [...prev, { type: eventType, message: parsed.message || '' }]);
-
-            if (parsed.current && parsed.total) {
-              setImportProgress({ current: parsed.current, total: parsed.total });
-            }
-
-            if (eventType === 'done' || eventType === 'error') {
-              setImportDone(true);
-              setImporting(false);
-              if (eventType === 'done') load();
-            }
-          } catch {
-            // skip malformed events
-          }
-        }
-
-        if (logRef.current) {
-          logRef.current.scrollTop = logRef.current.scrollHeight;
-        }
-      }
+      await api.post('/admin/import/jobs', { urls });
+      show(`${urls.length} importação(ões) adicionada(s) à fila`);
+      setImportModal(false);
+      navigate('/imports');
     } catch (err: any) {
-      setImportLog((prev) => [...prev, { type: 'error', message: 'Conexão perdida: ' + (err.message || 'erro desconhecido') }]);
-      setImporting(false);
-      setImportDone(true);
+      show(err.response?.data?.error || 'Erro ao criar importações', 'error');
+    } finally {
+      setImportSubmitting(false);
     }
   };
 
@@ -222,7 +176,7 @@ export default function Artists() {
       <div className="page-header">
         <h1>Artistas</h1>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn btn-ghost" onClick={() => { setImportModal(true); setSpotifyUrl(''); setImportLog([]); setImporting(false); setImportDone(false); setImportProgress(null); }}>🎵 Importar do Spotify</button>
+          <button className="btn btn-ghost" onClick={() => { setImportModal(true); setSpotifyUrls(['']); }}>🎵 Importar do Spotify</button>
           <button className="btn btn-primary" onClick={openCreate}>+ Novo Artista</button>
         </div>
       </div>
@@ -372,94 +326,49 @@ export default function Artists() {
       )}
 
       {importModal && (
-        <div className="modal-overlay" onClick={() => { if (!importing) setImportModal(false); }}>
+        <div className="modal-overlay" onClick={() => { if (!importSubmitting) setImportModal(false); }}>
           <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 640 }}>
             <div className="modal-header">
               <h2>🎵 Importar do Spotify</h2>
-              {!importing && <button className="btn-icon" onClick={() => setImportModal(false)}>✕</button>}
+              {!importSubmitting && <button className="btn-icon" onClick={() => setImportModal(false)}>✕</button>}
             </div>
 
-            {!importing && !importDone ? (
-              <form onSubmit={(e) => { e.preventDefault(); startImport(); }}>
-                <div className="modal-body">
-                  <div className="form-group">
-                    <label>URL do Artista no Spotify</label>
-                    <input
-                      className="form-input"
-                      value={spotifyUrl}
-                      onChange={(e) => setSpotifyUrl(e.target.value)}
-                      placeholder="https://open.spotify.com/artist/..."
-                      required
-                    />
-                    <small style={{ color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
-                      Cole o link do perfil do artista no Spotify. Todos os álbuns, singles e músicas serão importados automaticamente.
-                    </small>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-ghost" onClick={() => setImportModal(false)}>Cancelar</button>
-                  <button type="submit" className="btn btn-primary">Importar</button>
-                </div>
-              </form>
-            ) : (
+            <form onSubmit={(e) => { e.preventDefault(); startImport(); }}>
               <div className="modal-body">
-                {importProgress && (
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>
-                      <span>Progresso</span>
-                      <span>{importProgress.current} / {importProgress.total}</span>
-                    </div>
-                    <div style={{ height: 6, background: 'var(--bg-secondary)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{
-                        height: '100%',
-                        width: `${Math.round((importProgress.current / importProgress.total) * 100)}%`,
-                        background: 'var(--primary)',
-                        borderRadius: 3,
-                        transition: 'width 0.3s ease',
-                      }} />
-                    </div>
-                  </div>
-                )}
-                <div
-                  ref={logRef}
-                  style={{
-                    height: 350,
-                    overflowY: 'auto',
-                    background: '#0a0a0a',
-                    borderRadius: 8,
-                    padding: 12,
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    lineHeight: 1.6,
-                    border: '1px solid var(--border)',
-                  }}
-                >
-                  {importLog.map((line, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        color:
-                          line.type === 'error' ? '#ef4444' :
-                          line.type === 'done' ? '#22c55e' :
-                          '#a3a3a3',
-                      }}
-                    >
-                      {line.message}
+                <div className="form-group">
+                  <label>URLs dos Artistas no Spotify</label>
+                  {spotifyUrls.map((url, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                      <input
+                        className="form-input"
+                        style={{ flex: 1 }}
+                        value={url}
+                        onChange={(e) => updateUrl(idx, e.target.value)}
+                        placeholder="https://open.spotify.com/artist/..."
+                        required
+                      />
+                      {spotifyUrls.length > 1 && (
+                        <button type="button" className="btn-icon danger" onClick={() => removeUrlField(idx)} title="Remover">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      )}
                     </div>
                   ))}
-                  {importing && !importDone && (
-                    <div style={{ color: 'var(--primary)', marginTop: 4 }}>⏳ Processando...</div>
-                  )}
-                </div>
-                <div className="modal-footer" style={{ marginTop: 16 }}>
-                  {importDone ? (
-                    <button className="btn btn-primary" onClick={() => { setImportModal(false); load(); }}>Fechar</button>
-                  ) : (
-                    <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>Não feche esta janela durante a importação.</span>
-                  )}
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={addUrlField} style={{ marginTop: 4 }}>
+                    + Adicionar outro artista
+                  </button>
+                  <small style={{ color: 'var(--text-muted)', marginTop: 8, display: 'block' }}>
+                    Cole os links dos perfis de artistas no Spotify. Cada URL cria uma importação na fila. Álbuns, singles e músicas serão importados automaticamente.
+                  </small>
                 </div>
               </div>
-            )}
+              <div className="modal-footer">
+                <button type="button" className="btn btn-ghost" onClick={() => setImportModal(false)} disabled={importSubmitting}>Cancelar</button>
+                <button type="submit" className="btn btn-primary" disabled={importSubmitting}>
+                  {importSubmitting ? 'Enviando...' : `Importar (${spotifyUrls.filter(u => u.trim()).length})`}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
