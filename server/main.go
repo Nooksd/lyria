@@ -35,6 +35,7 @@ func main() {
 	go websocketmanager.ManagerInstance.Run()
 
 	controller.StartImportWorker()
+	controller.InitAutoImport()
 
 	routes.AuthRoutes(router)
 	routes.ImageRoutes(router)

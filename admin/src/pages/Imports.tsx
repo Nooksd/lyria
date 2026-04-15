@@ -30,6 +30,9 @@ export default function Imports() {
   const [jobDetail, setJobDetail] = useState<ImportJob | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [autoImportEnabled, setAutoImportEnabled] = useState(false);
+  const [autoImportGenre, setAutoImportGenre] = useState('');
+  const [autoImportLoading, setAutoImportLoading] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<AbortController | null>(null);
   const { toasts, show } = useToast();
@@ -45,11 +48,38 @@ export default function Imports() {
     }
   }, []);
 
+  const loadAutoImportStatus = useCallback(async () => {
+    try {
+      const res = await api.get('/admin/autoimport/status');
+      setAutoImportEnabled(res.data.enabled);
+      setAutoImportGenre(res.data.genre || '');
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     loadJobs();
-    const interval = setInterval(loadJobs, 5000);
+    loadAutoImportStatus();
+    const interval = setInterval(() => {
+      loadJobs();
+      loadAutoImportStatus();
+    }, 5000);
     return () => clearInterval(interval);
-  }, [loadJobs]);
+  }, [loadJobs, loadAutoImportStatus]);
+
+  const toggleAutoImport = async () => {
+    setAutoImportLoading(true);
+    try {
+      const res = await api.post('/admin/autoimport/toggle', { enabled: !autoImportEnabled });
+      setAutoImportEnabled(res.data.enabled);
+      show(res.data.enabled ? 'Autoimport ativado' : 'Autoimport desativado');
+    } catch {
+      show('Erro ao alterar autoimport', 'error');
+    } finally {
+      setAutoImportLoading(false);
+    }
+  };
 
   const openJob = async (jobId: string) => {
     // Close previous stream
@@ -201,8 +231,53 @@ export default function Imports() {
   return (
     <>
       <ToastContainer toasts={toasts} />
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Importações</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {autoImportEnabled && autoImportGenre && (
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Gênero atual: <strong style={{ color: 'var(--accent)' }}>{autoImportGenre}</strong>
+            </span>
+          )}
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              cursor: autoImportLoading ? 'wait' : 'pointer',
+              userSelect: 'none',
+              fontSize: 14,
+              fontWeight: 500,
+            }}
+          >
+            <span>Autoimport</span>
+            <div
+              onClick={autoImportLoading ? undefined : toggleAutoImport}
+              style={{
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                background: autoImportEnabled ? 'var(--accent)' : 'var(--bg-input)',
+                position: 'relative',
+                transition: 'background 0.2s ease',
+                border: '1px solid var(--border)',
+                opacity: autoImportLoading ? 0.5 : 1,
+              }}
+            >
+              <div style={{
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                background: '#fff',
+                position: 'absolute',
+                top: 2,
+                left: autoImportEnabled ? 22 : 2,
+                transition: 'left 0.2s ease',
+                boxShadow: '0 1px 3px rgba(0,0,0,.3)',
+              }} />
+            </div>
+          </label>
+        </div>
       </div>
 
       {selectedJob && jobDetail ? (

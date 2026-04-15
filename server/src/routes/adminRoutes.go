@@ -64,5 +64,9 @@ func AdminRoutes(router *gin.Engine) {
 		adminProtected.GET("/import/jobs/:jobId", controller.GetImportJob())
 		adminProtected.POST("/import/jobs/:jobId/cancel", controller.CancelImportJob())
 		adminProtected.GET("/import/jobs/:jobId/logs", controller.StreamImportJobLogs())
+
+		// Auto import
+		adminProtected.GET("/autoimport/status", controller.GetAutoImportStatus())
+		adminProtected.POST("/autoimport/toggle", controller.ToggleAutoImport())
 	}
 }
