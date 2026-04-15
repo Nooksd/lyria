@@ -65,7 +65,9 @@ jobs:
 
       - name: Test docker-compose config
         run: |
+          cp server/.env.example server/.env
           docker compose config
+          rm server/.env
 
   deploy:
     name: Deploy to Production
