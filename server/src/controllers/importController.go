@@ -313,13 +313,14 @@ func ImportFromSpotify() gin.HandlerFunc {
 				outputPath := fmt.Sprintf("./uploads/music/%s.%%(ext)s", musicOID.Hex())
 
 				ytArgs := []string{
-					"-f", "bestaudio[ext=m4a]/bestaudio",
+					"-f", "bestaudio[ext=m4a]/bestaudio[abr>0]/bestaudio/best",
 					"-x", "--audio-format", "m4a",
 					"-o", outputPath,
 					"--no-playlist",
 					"--socket-timeout", "30",
 					"--retries", "3",
-					"--extractor-args", "youtube:player_client=mweb",
+					"--extractor-args", "youtube:player_client=ios,android,web",
+					"--add-header", "User-Agent:Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
 				}
 				// Use cookies file if available (absolute path, non-empty)
 				cookiesPath := "/opt/lyria/server/cookies.txt"
