@@ -1,6 +1,6 @@
 class ApiConfig {
-  static const String baseUrl = 'http://192.168.15.11:9000';
-  static const String wsUrl = 'ws://192.168.15.11:9000';
+  static const String baseUrl = 'https://lyria.risadev.com';
+  static const String wsUrl = 'wss://lyria.risadev.com';
 
   static String fixImageUrl(String? url) {
     if (url == null || url.isEmpty) return '';
