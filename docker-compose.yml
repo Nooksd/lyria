@@ -13,6 +13,7 @@ services:
       - ENVIRONMENT=production
     volumes:
       - server-uploads:/app/uploads
+      - /opt/lyria/cookies.txt:/app/cookies.txt:ro
     networks:
       - lyria-network
     healthcheck:
@@ -44,6 +45,8 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot-conf:/etc/letsencrypt:ro
+      - certbot-www:/var/www/certbot:ro
     depends_on:
       lyria-server:
         condition: service_healthy
@@ -52,9 +55,21 @@ services:
     networks:
       - lyria-network
 
+  certbot:
+    image: certbot/certbot:latest
+    container_name: lyria-certbot
+    volumes:
+      - certbot-conf:/etc/letsencrypt
+      - certbot-www:/var/www/certbot
+    # Renew certificates twice a day; exits immediately if nothing to renew
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done"
+
 volumes:
   server-uploads:
+  certbot-conf:
+  certbot-www:
 
 networks:
   lyria-network:
     driver: bridge
+

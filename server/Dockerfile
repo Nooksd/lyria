@@ -12,7 +12,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o lyria_server .
 FROM alpine:3.19
 
 RUN apk add --no-cache ffmpeg python3 py3-pip ca-certificates tzdata \
-    && pip3 install --break-system-packages yt-dlp
+    && pip3 install --break-system-packages "yt-dlp[default]"
 
 WORKDIR /app
 

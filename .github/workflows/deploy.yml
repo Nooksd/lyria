@@ -135,6 +135,11 @@ jobs:
             fi
           ENVSETUP
 
+      - name: Ensure cookies.txt exists on server
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "touch /opt/lyria/cookies.txt"
+
       - name: Build and deploy containers
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'DEPLOY'
