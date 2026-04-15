@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://192.168.15.11:9000';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://lyria.risadev.com';
 
 export { API_BASE };
 
