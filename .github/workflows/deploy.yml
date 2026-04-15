@@ -74,19 +74,6 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Check sudo access
-        run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'SUDOCHECK'
-            if ! sudo -n true 2>/dev/null; then
-              echo ""
-              echo "ERROR: O usuário SSH não tem sudo sem senha (NOPASSWD)."
-              echo "Rode no servidor: echo \"\$USER ALL=(ALL) NOPASSWD:ALL\" | sudo tee /etc/sudoers.d/\$USER-nopasswd"
-              echo "Ou use SSH_USER=root nos secrets do GitHub."
-              exit 1
-            fi
-            echo "sudo -n OK: usuário $(whoami) tem acesso sem senha."
-          SUDOCHECK
-
       - name: Prepare server directories
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'PREP'
@@ -261,8 +248,7 @@ jobs:
 
           # API Server — mobile app connects here
           server {
-              listen 443 ssl;
-              http2 on;
+              listen 443 ssl http2;
               server_name lyria.risadev.com;
 
               ssl_certificate     /etc/letsencrypt/live/lyria.risadev.com/fullchain.pem;
@@ -303,8 +289,7 @@ jobs:
 
           # Admin Panel
           server {
-              listen 443 ssl;
-              http2 on;
+              listen 443 ssl http2;
               server_name admin.lyria.risadev.com;
 
               ssl_certificate     /etc/letsencrypt/live/lyria.risadev.com/fullchain.pem;
