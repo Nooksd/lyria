@@ -74,14 +74,27 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Check sudo access
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'SUDOCHECK'
+            if ! sudo -n true 2>/dev/null; then
+              echo ""
+              echo "ERROR: O usuário SSH não tem sudo sem senha (NOPASSWD)."
+              echo "Rode no servidor: echo \"\$USER ALL=(ALL) NOPASSWD:ALL\" | sudo tee /etc/sudoers.d/\$USER-nopasswd"
+              echo "Ou use SSH_USER=root nos secrets do GitHub."
+              exit 1
+            fi
+            echo "sudo -n OK: usuário $(whoami) tem acesso sem senha."
+          SUDOCHECK
+
       - name: Prepare server directories
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'PREP'
             set -e
-            sudo mkdir -p /opt/lyria/server/uploads/{image/avatar,image/cover,image/playlist,image/music_cover,music,lyrics}
-            sudo mkdir -p /opt/lyria/admin
-            sudo mkdir -p /var/www/certbot
-            sudo chown -R $USER:$USER /opt/lyria
+            sudo -n mkdir -p /opt/lyria/server/uploads/{image/avatar,image/cover,image/playlist,image/music_cover,music,lyrics}
+            sudo -n mkdir -p /opt/lyria/admin
+            sudo -n mkdir -p /var/www/certbot
+            sudo -n chown -R $USER:$USER /opt/lyria
           PREP
 
       - name: Install server dependencies
@@ -92,23 +105,23 @@ jobs:
             # Install nginx if not present
             if ! command -v nginx &>/dev/null; then
               echo "Installing nginx..."
-              sudo apt-get update
-              sudo apt-get install -y nginx
-              sudo systemctl enable nginx
+              sudo -n apt-get update
+              sudo -n apt-get install -y nginx
+              sudo -n systemctl enable nginx
             fi
 
             # Install ffmpeg if not present
             if ! command -v ffmpeg &>/dev/null; then
               echo "Installing ffmpeg..."
-              sudo apt-get update
-              sudo apt-get install -y ffmpeg
+              sudo -n apt-get update
+              sudo -n apt-get install -y ffmpeg
             fi
 
             # Install yt-dlp if not present
             if ! command -v yt-dlp &>/dev/null; then
               echo "Installing yt-dlp..."
-              sudo apt-get install -y python3 python3-pip
-              sudo pip3 install --break-system-packages "yt-dlp[default]"
+              sudo -n apt-get install -y python3 python3-pip
+              sudo -n pip3 install --break-system-packages "yt-dlp[default]"
             fi
 
             echo "Dependencies OK"
@@ -163,7 +176,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'SERVICE'
             set -e
-            sudo tee /etc/systemd/system/lyria.service > /dev/null << 'EOF'
+            sudo -n tee /etc/systemd/system/lyria.service > /dev/null << 'EOF'
           [Unit]
           Description=Lyria Server
           After=network.target
@@ -181,8 +194,8 @@ jobs:
           WantedBy=multi-user.target
           EOF
 
-            sudo systemctl daemon-reload
-            sudo systemctl enable lyria
+            sudo -n systemctl daemon-reload
+            sudo -n systemctl enable lyria
             echo "Systemd service configured"
           SERVICE
 
@@ -192,7 +205,7 @@ jobs:
             set -e
 
             # Main nginx config
-            sudo tee /etc/nginx/nginx.conf > /dev/null << 'EOF'
+            sudo -n tee /etc/nginx/nginx.conf > /dev/null << 'EOF'
           user www-data;
           worker_processes auto;
           error_log /var/log/nginx/error.log warn;
@@ -231,7 +244,7 @@ jobs:
           EOF
 
             # Site config
-            sudo tee /etc/nginx/conf.d/lyria.conf > /dev/null << 'EOF'
+            sudo -n tee /etc/nginx/conf.d/lyria.conf > /dev/null << 'EOF'
           # Redirect HTTP -> HTTPS
           server {
               listen 80;
@@ -321,8 +334,8 @@ jobs:
           EOF
 
             # Remove default site if exists
-            sudo rm -f /etc/nginx/sites-enabled/default
-            sudo rm -f /etc/nginx/conf.d/default.conf
+            sudo -n rm -f /etc/nginx/sites-enabled/default
+            sudo -n rm -f /etc/nginx/conf.d/default.conf
 
             echo "Nginx configured"
           NGINX
@@ -335,14 +348,14 @@ jobs:
             # Install certbot if needed
             if ! command -v certbot &>/dev/null; then
               echo "Installing certbot..."
-              sudo apt-get update
-              sudo apt-get install -y certbot python3-certbot-nginx
+              sudo -n apt-get update
+              sudo -n apt-get install -y certbot python3-certbot-nginx
             fi
 
             # Check if certs already exist
             if [ ! -f /etc/letsencrypt/live/lyria.risadev.com/fullchain.pem ]; then
               echo "Obtaining SSL certificates..."
-              sudo certbot --nginx \
+              sudo -n certbot --nginx \
                 -d lyria.risadev.com \
                 -d admin.lyria.risadev.com \
                 --non-interactive \
@@ -350,15 +363,15 @@ jobs:
                 --email ${{ secrets.SMTP_USER }} \
                 --redirect || {
                   echo "Certbot failed — creating self-signed certs for now..."
-                  sudo mkdir -p /etc/letsencrypt/live/lyria.risadev.com
-                  sudo openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
+                  sudo -n mkdir -p /etc/letsencrypt/live/lyria.risadev.com
+                  sudo -n openssl req -x509 -nodes -newkey rsa:2048 -days 365 \
                     -keyout /etc/letsencrypt/live/lyria.risadev.com/privkey.pem \
                     -out /etc/letsencrypt/live/lyria.risadev.com/fullchain.pem \
                     -subj "/CN=lyria.risadev.com"
                 }
             else
               echo "SSL certs already exist, renewing if needed..."
-              sudo certbot renew --quiet || true
+              sudo -n certbot renew --quiet || true
             fi
           SSL
 
@@ -368,19 +381,19 @@ jobs:
             set -e
 
             echo "Testing nginx config..."
-            sudo nginx -t
+            sudo -n nginx -t
 
             echo "Restarting lyria service..."
-            sudo systemctl restart lyria
+            sudo -n systemctl restart lyria
 
             echo "Restarting nginx..."
-            sudo systemctl restart nginx
+            sudo -n systemctl restart nginx
 
             sleep 3
 
             echo "=== Service status ==="
-            sudo systemctl is-active lyria
-            sudo systemctl is-active nginx
+            sudo -n systemctl is-active lyria
+            sudo -n systemctl is-active nginx
 
             echo "Deployment complete!"
           RESTART
@@ -394,7 +407,7 @@ jobs:
             HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/favicon.ico || echo "000")
             if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "404" ]; then
               echo "Health check failed! HTTP code: $HTTP_CODE"
-              sudo journalctl -u lyria --no-pager -n 30
+              sudo -n journalctl -u lyria --no-pager -n 30
               exit 1
             fi
 
@@ -406,7 +419,7 @@ jobs:
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'ROLLBACK'
             echo "Deploy failed. Showing logs..."
-            sudo journalctl -u lyria --no-pager -n 50 || true
-            sudo nginx -t 2>&1 || true
-            sudo systemctl status lyria --no-pager || true
+            sudo -n journalctl -u lyria --no-pager -n 50 || true
+            sudo -n nginx -t 2>&1 || true
+            sudo -n systemctl status lyria --no-pager || true
           ROLLBACK
