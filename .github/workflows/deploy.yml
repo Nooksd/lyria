@@ -157,7 +157,7 @@ jobs:
       - name: Ensure cookies.txt exists
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
-            "touch /opt/lyria/server/cookies.txt"
+            "[ -f /opt/lyria/server/cookies.txt ] || touch /opt/lyria/server/cookies.txt"
 
       - name: Create systemd service
         run: |

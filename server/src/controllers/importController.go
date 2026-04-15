@@ -321,9 +321,10 @@ func ImportFromSpotify() gin.HandlerFunc {
 					"--retries", "3",
 					"--extractor-args", "youtube:player_client=mweb",
 				}
-				// Use cookies file if available
-				if _, err := os.Stat("./cookies.txt"); err == nil {
-					ytArgs = append(ytArgs, "--cookies", "./cookies.txt")
+				// Use cookies file if available (absolute path, non-empty)
+				cookiesPath := "/opt/lyria/server/cookies.txt"
+				if info, err := os.Stat(cookiesPath); err == nil && info.Size() > 0 {
+					ytArgs = append(ytArgs, "--cookies", cookiesPath)
 				}
 				ytArgs = append(ytArgs, searchQuery)
 
