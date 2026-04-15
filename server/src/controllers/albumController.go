@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -121,6 +122,15 @@ func GetAlbum() gin.HandlerFunc {
 				color = album.Color
 			}
 
+			// Load lyrics if available
+			var lyrics interface{}
+			lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", m.ID.Hex())
+			if _, err := os.Stat(lyricsPath); err == nil {
+				if parsed, err := parseLRC(lyricsPath); err == nil {
+					lyrics = parsed
+				}
+			}
+
 			enrichedMusics[i] = gin.H{
 				"_id":        m.ID,
 				"url":        serverURL + m.Url,
@@ -133,6 +143,7 @@ func GetAlbum() gin.HandlerFunc {
 				"coverUrl":   coverUrl,
 				"color":      color,
 				"waveform":   m.Waveform,
+				"lyrics":     lyrics,
 				"createdAt":  m.CreatedAt,
 				"updatedAt":  m.UpdatedAt,
 			}

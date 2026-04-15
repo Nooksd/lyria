@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -129,49 +130,76 @@ func GetArtist() gin.HandlerFunc {
 			return
 		}
 
-		// Enrich musics with coverUrl, color, albumName, artistName, full url
-		enrichedMusics := make([]gin.H, len(musics))
-		for i, m := range musics {
-			coverUrl := m.CoverUrl
-			color := m.Color
-			albumName := ""
-			if a, ok := albumMap[m.AlbumID]; ok {
-				albumName = a.Name
+		// Helper to enrich a music slice
+		enrichMusic := func(musicList []model.Music) []gin.H {
+			result := make([]gin.H, len(musicList))
+			for i, m := range musicList {
+				coverUrl := m.CoverUrl
+				color := m.Color
+				albumName := ""
+				if a, ok := albumMap[m.AlbumID]; ok {
+					albumName = a.Name
+					if coverUrl == "" {
+						coverUrl = serverURL + a.AlbumCoverUrl
+					}
+					if color == "" {
+						color = a.Color
+					}
+				}
 				if coverUrl == "" {
-					coverUrl = serverURL + a.AlbumCoverUrl
+					coverUrl = serverURL + "/image/cover/" + m.ID.Hex()
 				}
-				if color == "" {
-					color = a.Color
+				if m.CoverUrl != "" && !strings.HasPrefix(m.CoverUrl, "http") {
+					coverUrl = serverURL + m.CoverUrl
 				}
-			}
-			if coverUrl == "" {
-				coverUrl = serverURL + "/image/cover/" + m.ID.Hex()
-			}
-			if m.CoverUrl != "" && !strings.HasPrefix(m.CoverUrl, "http") {
-				coverUrl = serverURL + m.CoverUrl
-			}
 
-			enrichedMusics[i] = gin.H{
-				"_id":        m.ID,
-				"url":        serverURL + m.Url,
-				"name":       m.Name,
-				"artistId":   m.ArtistID,
-				"artistName": artist.Name,
-				"albumId":    m.AlbumID,
-				"albumName":  albumName,
-				"genre":      m.Genre,
-				"coverUrl":   coverUrl,
-				"color":      color,
-				"waveform":   m.Waveform,
-				"createdAt":  m.CreatedAt,
-				"updatedAt":  m.UpdatedAt,
+				var lyrics interface{}
+				lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", m.ID.Hex())
+				if _, err := os.Stat(lyricsPath); err == nil {
+					if parsed, err := parseLRC(lyricsPath); err == nil {
+						lyrics = parsed
+					}
+				}
+
+				result[i] = gin.H{
+					"_id":        m.ID,
+					"url":        serverURL + m.Url,
+					"name":       m.Name,
+					"artistId":   m.ArtistID,
+					"artistName": artist.Name,
+					"albumId":    m.AlbumID,
+					"albumName":  albumName,
+					"genre":      m.Genre,
+					"coverUrl":   coverUrl,
+					"color":      color,
+					"waveform":   m.Waveform,
+					"lyrics":     lyrics,
+					"createdAt":  m.CreatedAt,
+					"updatedAt":  m.UpdatedAt,
+				}
 			}
+			return result
 		}
 
+		enrichedMusics := enrichMusic(musics)
+
+		// Fetch singles (musics without album)
+		var singles []model.Music
+		singlesCursor, err := musicCollection.Find(
+			ctx,
+			bson.M{"artistId": objectID, "albumId": primitive.NilObjectID},
+			options.Find().SetSort(bson.M{"createdAt": -1}),
+		)
+		if err == nil {
+			singlesCursor.All(ctx, &singles)
+		}
+		enrichedSingles := enrichMusic(singles)
+
 		response := gin.H{
-			"artist": artist,
-			"albums": albums,
-			"musics": enrichedMusics,
+			"artist":  artist,
+			"albums":  albums,
+			"musics":  enrichedMusics,
+			"singles": enrichedSingles,
 		}
 
 		c.JSON(http.StatusOK, response)
@@ -272,6 +300,8 @@ func DeleteArtist() gin.HandlerFunc {
 			if err := cursor.All(ctx, &musics); err == nil {
 				for _, m := range musics {
 					os.Remove("./uploads/music/" + m.ID.Hex() + ".m4a")
+					os.Remove("./uploads/lyrics/" + m.ID.Hex() + ".lrc")
+					os.Remove("./uploads/image/music_cover/" + m.ID.Hex() + ".png")
 				}
 			}
 		}
@@ -282,11 +312,26 @@ func DeleteArtist() gin.HandlerFunc {
 			return
 		}
 
+		// Delete all album cover files
+		albumCursor, err := albumCollection.Find(ctx, bson.M{"artistId": objectID})
+		if err == nil {
+			var albums []model.Album
+			if err := albumCursor.All(ctx, &albums); err == nil {
+				for _, a := range albums {
+					os.Remove("./uploads/image/cover/" + a.ID.Hex() + ".png")
+				}
+			}
+		}
+
 		_, err = albumCollection.DeleteMany(ctx, bson.M{"artistId": objectID})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao deletar álbuns"})
 			return
 		}
+
+		// Delete artist image files
+		os.Remove("./uploads/image/avatar/" + objectID.Hex() + ".png")
+		os.Remove("./uploads/image/banner/" + objectID.Hex() + ".png")
 
 		result, err := artistCollection.DeleteOne(ctx, bson.M{"_id": objectID})
 		if err != nil {

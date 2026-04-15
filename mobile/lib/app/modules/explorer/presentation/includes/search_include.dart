@@ -52,26 +52,31 @@ class SearchInclude extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.builder(
       itemCount: searches.length,
-      itemBuilder: (context, index) => MusicTile(
-        title: searches[index].name,
-        subtitle: searches[index].description,
-        image: searches[index].imageUrl,
-        isRound: searches[index].type == 'artist',
-        onTap: () {
-          _onTap(context, searches[index]);
-        },
-        onLongPress: () => _showMoreOptions(context, searches[index]),
-        trailing: isHistory
-            ? GestureDetector(
-                onTap: () => onRemove(index),
-                child: SizedBox(
-                  height: 55,
-                  width: 20,
-                  child: Icon(CustomIcons.x, size: 10),
-                ),
-              )
-            : Text(''),
-      ),
+      itemBuilder: (context, index) {
+        final actualIndex =
+            isHistory ? searches.length - 1 - index : index;
+        final item = searches[actualIndex];
+        return MusicTile(
+          title: item.name,
+          subtitle: item.description,
+          image: item.imageUrl,
+          isRound: item.type == 'artist',
+          onTap: () {
+            _onTap(context, item);
+          },
+          onLongPress: () => _showMoreOptions(context, item),
+          trailing: isHistory
+              ? GestureDetector(
+                  onTap: () => onRemove(actualIndex),
+                  child: SizedBox(
+                    height: 55,
+                    width: 20,
+                    child: Icon(CustomIcons.x, size: 10),
+                  ),
+                )
+              : Text(''),
+        );
+      },
     );
   }
 }

@@ -22,6 +22,7 @@ class _ArtistPageState extends State<ArtistPage> {
 
   Map<String, dynamic>? artist;
   List<Music> topMusics = [];
+  List<Music> singles = [];
   List<Map<String, dynamic>> albums = [];
   bool isLoading = true;
 
@@ -39,6 +40,9 @@ class _ArtistPageState extends State<ArtistPage> {
         setState(() {
           artist = data['artist'];
           topMusics = (data['musics'] as List? ?? [])
+              .map((m) => Music.fromJson(m))
+              .toList();
+          singles = (data['singles'] as List? ?? [])
               .map((m) => Music.fromJson(m))
               .toList();
           albums = (data['albums'] as List? ?? [])
@@ -375,6 +379,44 @@ class _ArtistPageState extends State<ArtistPage> {
                   },
                 ),
               ),
+            ],
+
+            // Singles
+            if (singles.isNotEmpty) ...[
+              const SizedBox(height: 32),
+              Padding(
+                padding:
+                    EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                child: const Text(
+                  "Singles",
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...singles
+                  .asMap()
+                  .entries
+                  .map((entry) {
+                final index = entry.key;
+                final music = entry.value;
+                return Padding(
+                  padding: EdgeInsets.symmetric(
+                      horizontal: screenWidth * 0.05),
+                  child: MusicTile(
+                    title: music.name,
+                    subtitle: music.artistName,
+                    image: music.coverUrl,
+                    isRound: false,
+                    onTap: () =>
+                        musicCubit.setQueue(singles, index, null),
+                    onLongPress: () {},
+                    trailing: null,
+                  ),
+                );
+              }),
             ],
 
             const SizedBox(height: 120),

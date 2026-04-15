@@ -94,10 +94,7 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       await _playlist.addAll(sources);
       await _audioPlayer.setAudioSource(_playlist, initialIndex: currentIndex);
-
-      if (!_audioPlayer.playing) {
-        await _audioPlayer.play();
-      }
+      await _audioPlayer.play();
     } catch (e) {
       debugPrint('Erro ao configurar fila: $e');
     } finally {

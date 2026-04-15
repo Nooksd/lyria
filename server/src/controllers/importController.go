@@ -201,6 +201,15 @@ func ImportFromSpotify() gin.HandlerFunc {
 			}
 		}
 
+		// Fetch artist bio from TheAudioDB
+		sse.send("progress", map[string]string{"message": "Buscando bio do artista..."})
+		artistBio := fetchAudioDBBio(spArtist.Name)
+		if artistBio != "" {
+			sse.send("progress", map[string]string{"message": "Bio encontrada ✓"})
+		} else {
+			sse.send("progress", map[string]string{"message": "Bio não encontrada, continuando..."})
+		}
+
 		now := time.Now()
 		dbArtist := model.Artist{
 			ID:        artistOID,
@@ -208,7 +217,7 @@ func ImportFromSpotify() gin.HandlerFunc {
 			Genres:    spArtist.Genres,
 			AvatarUrl: "/image/avatar/" + artistOID.Hex(),
 			BannerUrl: "/image/banner/" + artistOID.Hex(),
-			Bio:       "",
+			Bio:       artistBio,
 			Color:     artistColor,
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -371,9 +380,18 @@ func ImportFromSpotify() gin.HandlerFunc {
 				}
 
 				totalMusics++
-				sse.send("progress", map[string]string{
-					"message": fmt.Sprintf("✅ [%d/%d] %s", processedTracks, totalTracks, track.Name),
-				})
+
+				// Try to fetch and save synced lyrics from lrclib.net (best-effort)
+				lrcPath := filepath.Join("uploads", "lyrics", musicOID.Hex()+".lrc")
+				if err := fetchAndSaveLRC(spArtist.Name, track.Name, track.DurationMs, lrcPath); err == nil {
+					sse.send("progress", map[string]string{
+						"message": fmt.Sprintf("🎵 [%d/%d] %s (letra ✓)", processedTracks, totalTracks, track.Name),
+					})
+				} else {
+					sse.send("progress", map[string]string{
+						"message": fmt.Sprintf("✅ [%d/%d] %s", processedTracks, totalTracks, track.Name),
+					})
+				}
 			}
 		}
 

@@ -2,12 +2,18 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+
+	model "server/src/models"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func SearchByGenre() gin.HandlerFunc {
@@ -23,23 +29,12 @@ func SearchByGenre() gin.HandlerFunc {
 
 		pageInt := 1
 		limitInt := 20
-		_, _ = c.GetQuery("page")
-		if p, ok := c.GetQuery("page"); ok {
-			_ = p
-		}
-
-		// Parse page and limit
-		if p := page; p != "" {
-			for _, ch := range p {
-				if ch < '0' || ch > '9' {
-					break
-				}
-			}
-		}
 
 		pInt := 0
 		for _, ch := range page {
-			pInt = pInt*10 + int(ch-'0')
+			if ch >= '0' && ch <= '9' {
+				pInt = pInt*10 + int(ch-'0')
+			}
 		}
 		if pInt > 0 {
 			pageInt = pInt
@@ -47,82 +42,159 @@ func SearchByGenre() gin.HandlerFunc {
 
 		lInt := 0
 		for _, ch := range limit {
-			lInt = lInt*10 + int(ch-'0')
+			if ch >= '0' && ch <= '9' {
+				lInt = lInt*10 + int(ch-'0')
+			}
 		}
 		if lInt > 0 {
 			limitInt = lInt
 		}
 
-		skip := (pageInt - 1) * limitInt
+		skip := int64((pageInt - 1) * limitInt)
 
 		// Find artists by genre
-		artistPipeline := []bson.M{
-			{"$match": bson.M{"genres": bson.M{"$regex": genre, "$options": "i"}}},
-		}
 		artistCursor, err := artistCollection.Find(ctx, bson.M{"genres": bson.M{"$regex": genre, "$options": "i"}})
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar artistas"})
 			return
 		}
-		_ = artistPipeline
 
-		var artists []bson.M
+		var artists []model.Artist
 		if err := artistCursor.All(ctx, &artists); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar artistas"})
 			return
 		}
 
-		for i := range artists {
-			artists[i]["avatarUrl"] = serverURL + artists[i]["avatarUrl"].(string)
+		enrichedArtists := make([]gin.H, len(artists))
+		for i, a := range artists {
+			enrichedArtists[i] = gin.H{
+				"_id":       a.ID,
+				"name":      a.Name,
+				"avatarUrl": serverURL + a.AvatarUrl,
+				"genres":    a.Genres,
+			}
 		}
 
 		// Find musics by genre with pagination
-		musicPipeline := []bson.M{
-			{"$match": bson.M{"genre": bson.M{"$regex": genre, "$options": "i"}}},
-			{"$lookup": bson.M{"from": "albums", "localField": "albumId", "foreignField": "_id", "as": "album"}},
-			{"$unwind": bson.M{"path": "$album", "preserveNullAndEmptyArrays": true}},
-			{"$lookup": bson.M{"from": "artists", "localField": "artistId", "foreignField": "_id", "as": "artist"}},
-			{"$unwind": bson.M{"path": "$artist", "preserveNullAndEmptyArrays": true}},
-			{"$addFields": bson.M{
-				"coverUrl": bson.M{"$cond": bson.M{
-					"if":   bson.M{"$and": []interface{}{bson.M{"$ne": []interface{}{"$coverUrl", ""}}, bson.M{"$ne": []interface{}{"$coverUrl", nil}}}},
-					"then": bson.M{"$concat": []interface{}{serverURL, "$coverUrl"}},
-					"else": bson.M{"$cond": bson.M{
-						"if":   bson.M{"$ne": []interface{}{"$album.albumCoverUrl", nil}},
-						"then": bson.M{"$concat": []interface{}{serverURL, "$album.albumCoverUrl"}},
-						"else": "",
-					}},
-				}},
-				"color": bson.M{"$cond": bson.M{
-					"if":   bson.M{"$and": []interface{}{bson.M{"$ne": []interface{}{"$color", ""}}, bson.M{"$ne": []interface{}{"$color", nil}}}},
-					"then": "$color",
-					"else": bson.M{"$ifNull": []interface{}{"$album.color", ""}},
-				}},
-				"artistName": bson.M{"$ifNull": []interface{}{"$artist.name", ""}},
-				"albumName":  bson.M{"$ifNull": []interface{}{"$album.name", ""}},
-				"url":        bson.M{"$concat": []interface{}{serverURL, "$url"}},
-			}},
-			{"$project": bson.M{"album": 0, "artist": 0}},
-			{"$skip": skip},
-			{"$limit": limitInt},
+		genreFilter := bson.M{"genre": bson.M{"$regex": genre, "$options": "i"}}
+
+		totalCount, err := musicCollection.CountDocuments(ctx, genreFilter)
+		if err != nil {
+			totalCount = 0
 		}
 
-		musicCursor, err := musicCollection.Aggregate(ctx, musicPipeline)
+		var musics []model.Music
+		musicCursor, err := musicCollection.Find(
+			ctx,
+			genreFilter,
+			options.Find().SetSkip(skip).SetLimit(int64(limitInt)).SetSort(bson.M{"createdAt": -1}),
+		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
 			return
 		}
-
-		var musics []bson.M
 		if err := musicCursor.All(ctx, &musics); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar músicas"})
 			return
 		}
 
-		// Get total count
-		totalCount, err := musicCollection.CountDocuments(ctx, bson.M{"genre": bson.M{"$regex": genre, "$options": "i"}})
-		if err != nil {
-			totalCount = 0
+		// Collect unique album and artist IDs
+		albumIDs := make(map[primitive.ObjectID]bool)
+		artistIDs := make(map[primitive.ObjectID]bool)
+		for _, m := range musics {
+			if m.AlbumID != primitive.NilObjectID {
+				albumIDs[m.AlbumID] = true
+			}
+			artistIDs[m.ArtistID] = true
+		}
+
+		// Fetch albums
+		albumMap := make(map[primitive.ObjectID]model.Album)
+		if len(albumIDs) > 0 {
+			ids := make([]primitive.ObjectID, 0, len(albumIDs))
+			for id := range albumIDs {
+				ids = append(ids, id)
+			}
+			albumCursor, err := albumCollection.Find(ctx, bson.M{"_id": bson.M{"$in": ids}})
+			if err == nil {
+				var albumList []model.Album
+				if err := albumCursor.All(ctx, &albumList); err == nil {
+					for _, a := range albumList {
+						albumMap[a.ID] = a
+					}
+				}
+			}
+		}
+
+		// Fetch artists
+		artistMap := make(map[primitive.ObjectID]model.Artist)
+		if len(artistIDs) > 0 {
+			ids := make([]primitive.ObjectID, 0, len(artistIDs))
+			for id := range artistIDs {
+				ids = append(ids, id)
+			}
+			artCursor, err := artistCollection.Find(ctx, bson.M{"_id": bson.M{"$in": ids}})
+			if err == nil {
+				var artList []model.Artist
+				if err := artCursor.All(ctx, &artList); err == nil {
+					for _, a := range artList {
+						artistMap[a.ID] = a
+					}
+				}
+			}
+		}
+
+		// Enrich musics
+		enrichedMusics := make([]gin.H, len(musics))
+		for i, m := range musics {
+			coverUrl := m.CoverUrl
+			color := m.Color
+			albumName := ""
+			artistName := ""
+
+			if a, ok := albumMap[m.AlbumID]; ok {
+				albumName = a.Name
+				if coverUrl == "" {
+					coverUrl = serverURL + a.AlbumCoverUrl
+				}
+				if color == "" {
+					color = a.Color
+				}
+			}
+			if a, ok := artistMap[m.ArtistID]; ok {
+				artistName = a.Name
+			}
+			if coverUrl == "" {
+				coverUrl = serverURL + "/image/cover/" + m.ID.Hex()
+			}
+			if m.CoverUrl != "" && !strings.HasPrefix(m.CoverUrl, "http") {
+				coverUrl = serverURL + m.CoverUrl
+			}
+
+			var lyrics interface{}
+			lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", m.ID.Hex())
+			if _, err := os.Stat(lyricsPath); err == nil {
+				if parsed, err := parseLRC(lyricsPath); err == nil {
+					lyrics = parsed
+				}
+			}
+
+			enrichedMusics[i] = gin.H{
+				"_id":        m.ID,
+				"url":        serverURL + m.Url,
+				"name":       m.Name,
+				"artistId":   m.ArtistID,
+				"artistName": artistName,
+				"albumId":    m.AlbumID,
+				"albumName":  albumName,
+				"genre":      m.Genre,
+				"coverUrl":   coverUrl,
+				"color":      color,
+				"waveform":   m.Waveform,
+				"lyrics":     lyrics,
+				"createdAt":  m.CreatedAt,
+				"updatedAt":  m.UpdatedAt,
+			}
 		}
 
 		// Find albums that have songs of this genre
@@ -155,24 +227,11 @@ func SearchByGenre() gin.HandlerFunc {
 			return
 		}
 
-		// Add lyrics to musics
-		for i := range musics {
-			if id, ok := musics[i]["_id"]; ok {
-				lyricsPath := "./uploads/lyrics/" + id.(interface{ Hex() string }).Hex() + ".lrc"
-				if _, err := os.Stat(lyricsPath); err == nil {
-					lyrics, err := parseLRC(lyricsPath)
-					if err == nil {
-						musics[i]["lyrics"] = lyrics
-					}
-				}
-			}
-		}
-
 		c.JSON(http.StatusOK, gin.H{
 			"genre":   genre,
-			"artists": artists,
+			"artists": enrichedArtists,
 			"albums":  albums,
-			"musics":  musics,
+			"musics":  enrichedMusics,
 			"total":   totalCount,
 			"page":    pageInt,
 			"limit":   limitInt,
