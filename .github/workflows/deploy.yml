@@ -83,6 +83,27 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
+      - name: Ensure Docker is installed on server
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'DOCKERSETUP'
+            set -e
+            if ! command -v docker &>/dev/null; then
+              echo "Installing Docker..."
+              curl -fsSL https://get.docker.com | sh
+              sudo usermod -aG docker $USER
+              echo "Docker installed. Re-login required for group membership — using sudo for now."
+            else
+              echo "Docker already installed: $(docker --version)"
+            fi
+
+            if ! docker compose version &>/dev/null && ! docker-compose version &>/dev/null; then
+              echo "Installing Docker Compose plugin..."
+              sudo apt-get install -y docker-compose-plugin
+            else
+              echo "Docker Compose available."
+            fi
+          DOCKERSETUP
+
       - name: Create backup on server
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'BACKUP'
@@ -92,7 +113,7 @@ jobs:
               sudo rm -rf ${{ env.BACKUP_PATH }}
               sudo cp -r ${{ env.DEPLOY_PATH }} ${{ env.BACKUP_PATH }}
               cd ${{ env.DEPLOY_PATH }}
-              docker compose ps --format json > /tmp/lyria-prev-state.json 2>/dev/null || true
+              sudo docker compose ps --format json > /tmp/lyria-prev-state.json 2>/dev/null || true
               echo "Backup created successfully"
             else
               echo "No existing deployment found, skipping backup"
@@ -149,31 +170,33 @@ jobs:
             cd ${{ env.DEPLOY_PATH }}
 
             echo "Building images..."
-            docker compose build --no-cache
+            sudo docker compose build --no-cache
 
             echo "Stopping old containers..."
-            docker compose down --timeout 30
+            sudo docker compose down --timeout 30
 
             echo "Starting new containers..."
-            docker compose up -d
+            sudo docker compose up -d
 
             echo "Waiting for health checks..."
-            sleep 15
+            sleep 20
 
             # Check server health
-            if ! docker compose ps lyria-server | grep -q "healthy\|running"; then
+            if ! sudo docker compose ps lyria-server | grep -q "healthy\|running"; then
               echo "ERROR: Server container is not healthy!"
+              sudo docker compose logs lyria-server --tail=50
               exit 1
             fi
 
             # Check nginx
-            if ! docker compose ps nginx | grep -q "running"; then
+            if ! sudo docker compose ps nginx | grep -q "running"; then
               echo "ERROR: Nginx container is not running!"
+              sudo docker compose logs nginx --tail=20
               exit 1
             fi
 
             echo "Deployment successful!"
-            docker compose ps
+            sudo docker compose ps
           DEPLOY
 
       - name: Health check
@@ -200,7 +223,7 @@ jobs:
             echo "ROLLING BACK..."
 
             cd ${{ env.DEPLOY_PATH }}
-            docker compose down --timeout 10 2>/dev/null || true
+            sudo docker compose down --timeout 10 2>/dev/null || true
 
             if [ -d "${{ env.BACKUP_PATH }}" ]; then
               echo "Restoring from backup..."
@@ -208,20 +231,19 @@ jobs:
               sudo cp -r ${{ env.BACKUP_PATH }} ${{ env.DEPLOY_PATH }}
 
               cd ${{ env.DEPLOY_PATH }}
-              docker compose up -d
+              sudo docker compose up -d
 
               sleep 10
 
-              if docker compose ps lyria-server | grep -q "healthy\|running"; then
+              if sudo docker compose ps lyria-server | grep -q "healthy\|running"; then
                 echo "Rollback successful!"
               else
                 echo "WARNING: Rollback containers may not be healthy"
-                docker compose ps
-                docker compose logs --tail=50
+                sudo docker compose ps
+                sudo docker compose logs --tail=50
               fi
             else
-              echo "No backup found. Manual intervention required."
-              exit 1
+              echo "No backup found (first deploy). Nothing to restore."
             fi
           ROLLBACK
 
@@ -229,6 +251,6 @@ jobs:
         if: success()
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'CLEANUP'
-            docker image prune -f
+            sudo docker image prune -f
             echo "Cleanup done"
           CLEANUP
