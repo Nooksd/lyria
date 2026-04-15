@@ -315,12 +315,12 @@ func ImportFromSpotify() gin.HandlerFunc {
 				ytArgs := []string{
 					"-f", "bestaudio[ext=m4a]/bestaudio[abr>0]/bestaudio/best",
 					"-x", "--audio-format", "m4a",
+					"--ffmpeg-location", "/usr/bin/ffmpeg",
 					"-o", outputPath,
 					"--no-playlist",
 					"--socket-timeout", "30",
 					"--retries", "3",
 					"--extractor-args", "youtube:player_client=ios,android,web",
-					"--add-header", "User-Agent:Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
 				}
 				// Use cookies file if available (absolute path, non-empty)
 				cookiesPath := "/opt/lyria/server/cookies.txt"
@@ -344,10 +344,32 @@ func ImportFromSpotify() gin.HandlerFunc {
 					continue
 				}
 
-				// Generate waveform
+				// Find the actual downloaded file (yt-dlp may produce different extensions)
 				audioPath := fmt.Sprintf("uploads/music/%s.m4a", musicOID.Hex())
+				for _, ext := range []string{"m4a", "webm", "opus", "mp3", "ogg"} {
+					candidate := fmt.Sprintf("uploads/music/%s.%s", musicOID.Hex(), ext)
+					if _, statErr := os.Stat(candidate); statErr == nil {
+						audioPath = candidate
+						break
+					}
+				}
+
+				// Ensure file is m4a for streaming compatibility
+				if audioPath != fmt.Sprintf("uploads/music/%s.m4a", musicOID.Hex()) {
+					m4aPath := fmt.Sprintf("uploads/music/%s.m4a", musicOID.Hex())
+					convCmd := exec.Command("/usr/bin/ffmpeg", "-i", audioPath, "-c:a", "aac", "-b:a", "192k", "-y", m4aPath)
+					if convErr := convCmd.Run(); convErr == nil {
+						os.Remove(audioPath)
+						audioPath = m4aPath
+					}
+				}
+
+				// Generate waveform
 				waveform, err := GetWaveform(audioPath)
 				if err != nil {
+					sse.send("progress", map[string]string{
+						"message": fmt.Sprintf("⚠ Waveform falhou para '%s': %v", track.Name, err),
+					})
 					waveform = make([]float64, 70)
 				}
 

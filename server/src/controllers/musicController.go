@@ -242,7 +242,7 @@ func GetWaveform(audioPath string) ([]float64, error) {
 	defer tmpfile.Close()
 
 	cmd := exec.Command(
-		"ffmpeg",
+		"/usr/bin/ffmpeg",
 		"-i", audioPath,
 		"-ac", "1",
 		"-ar", "44100",

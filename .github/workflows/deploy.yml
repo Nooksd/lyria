@@ -175,6 +175,7 @@ jobs:
           User=root
           WorkingDirectory=/opt/lyria/server
           EnvironmentFile=/opt/lyria/server/.env
+          Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
           ExecStart=/opt/lyria/server/lyria_server
           Restart=always
           RestartSec=5
