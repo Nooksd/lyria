@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -311,19 +312,32 @@ func ImportFromSpotify() gin.HandlerFunc {
 				searchQuery := fmt.Sprintf("ytsearch1:%s - %s", spArtist.Name, track.Name)
 				outputPath := fmt.Sprintf("./uploads/music/%s.%%(ext)s", musicOID.Hex())
 
-				cmd := exec.Command("yt-dlp",
+				ytArgs := []string{
 					"-f", "bestaudio[ext=m4a]/bestaudio",
 					"-x", "--audio-format", "m4a",
 					"-o", outputPath,
 					"--no-playlist",
 					"--socket-timeout", "30",
 					"--retries", "3",
-					searchQuery,
-				)
+					"--extractor-args", "youtube:player_client=mweb",
+				}
+				// Use cookies file if available
+				if _, err := os.Stat("./cookies.txt"); err == nil {
+					ytArgs = append(ytArgs, "--cookies", "./cookies.txt")
+				}
+				ytArgs = append(ytArgs, searchQuery)
+
+				cmd := exec.Command("yt-dlp", ytArgs...)
+				var cmdStderr bytes.Buffer
+				cmd.Stderr = &cmdStderr
 				if err := cmd.Run(); err != nil {
 					failedTracks++
+					errMsg := cmdStderr.String()
+					if len(errMsg) > 200 {
+						errMsg = errMsg[len(errMsg)-200:]
+					}
 					sse.send("progress", map[string]string{
-						"message": fmt.Sprintf("⚠ Falha ao baixar '%s': %s", track.Name, err.Error()),
+						"message": fmt.Sprintf("⚠ Falha ao baixar '%s': %s | %s", track.Name, err.Error(), errMsg),
 					})
 					continue
 				}
