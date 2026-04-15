@@ -119,6 +119,8 @@ jobs:
 
       - name: Deploy server binary
         run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
+            "sudo -n systemctl stop lyria || true"
           scp -i ~/.ssh/deploy_key ./artifacts/server/lyria_server \
             ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/opt/lyria/server/lyria_server
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
