@@ -1,3 +1,4 @@
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 
 class Search {
@@ -19,11 +20,11 @@ class Search {
 
   factory Search.fromJson(Map<String, dynamic> json) {
     return Search(
-      id: json['id'],
-      name: json['name'],
-      type: json['type'],
-      description: json['description'],
-      imageUrl: json['imageUrl'],
+      id: json['id'] ?? '',
+      name: json['name'] ?? '',
+      type: json['type'] ?? '',
+      description: json['description'] ?? '',
+      imageUrl: ApiConfig.fixImageUrl(json['imageUrl']),
       music: json['music'] != null ? Music.fromJson(json['music']) : null,
     );
   }

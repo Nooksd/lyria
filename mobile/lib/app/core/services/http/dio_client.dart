@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 
@@ -12,7 +13,7 @@ class DioClient implements MyHttpClient {
   MyLocalStorage storage;
 
   DioClient({required this.storage}) {
-    dio.options.baseUrl = 'http://192.168.1.101:9000';
+    dio.options.baseUrl = ApiConfig.baseUrl;
 
     // Accept all responses (including 4xx) so we can handle them manually.
     // 401 on non-login requests is rejected in onResponse to trigger token refresh.

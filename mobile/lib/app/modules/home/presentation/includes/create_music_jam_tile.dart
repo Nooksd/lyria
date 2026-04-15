@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/musicjam/presentation/cubits/jam_cubit.dart';
@@ -230,7 +231,7 @@ class CreateMusicJamTile extends StatelessWidget {
 
   Widget _buildAvatar(
       BuildContext context, Map<String, dynamic> participant, double size) {
-    final avatarUrl = (participant['avatarUrl'] as String?) ?? '';
+    final avatarUrl = ApiConfig.fixImageUrl(participant['avatarUrl'] as String?);
     final primary = Theme.of(context).colorScheme.primary;
     return Container(
       width: size,

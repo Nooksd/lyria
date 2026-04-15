@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 
 class Playlist extends Equatable {
@@ -66,7 +67,7 @@ class Playlist extends Equatable {
     return Playlist(
       id: (json['_id'] ?? json['id']) as String,
       name: json['name'] as String,
-      playlistCoverUrl: json['playlistCoverUrl'] as String,
+      playlistCoverUrl: ApiConfig.fixImageUrl(json['playlistCoverUrl'] as String?),
       musics: parsedMusics,
       musicCount: json['musicCount'] as int?,
       updatedAt: parsedUpdatedAt,

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/modules/musicjam/presentation/cubits/jam_cubit.dart';
 
 class MusicJamPage extends StatelessWidget {
@@ -116,7 +117,7 @@ class MusicJamPage extends StatelessWidget {
                           itemBuilder: (context, index) {
                             final p = participants[index];
                             final avatarUrl =
-                                (p['avatarUrl'] as String?) ?? '';
+                                ApiConfig.fixImageUrl(p['avatarUrl'] as String?);
                             final name = (p['name'] as String?) ?? '';
 
                             return Padding(
@@ -124,38 +125,30 @@ class MusicJamPage extends StatelessWidget {
                               child: Row(
                                 children: [
                                   ClipOval(
-                                    child: SizedBox(
+                                    child: Container(
                                       width: 48,
                                       height: 48,
+                                      color: Colors.grey[800],
                                       child: avatarUrl.isNotEmpty
                                           ? CachedNetworkImage(
                                               imageUrl: avatarUrl,
                                               fit: BoxFit.cover,
                                               placeholder: (_, __) =>
-                                                  Container(
-                                                color: Colors.grey[800],
-                                                child: const Icon(
+                                                  const Icon(
                                                     Icons.person,
                                                     color: Colors.white54,
                                                     size: 24),
-                                              ),
                                               errorWidget:
                                                   (_, __, ___) =>
-                                                      Container(
-                                                color: Colors.grey[800],
-                                                child: const Icon(
+                                                      const Icon(
                                                     Icons.person,
                                                     color: Colors.white54,
                                                     size: 24),
-                                              ),
                                             )
-                                          : Container(
-                                              color: Colors.grey[800],
-                                              child: const Icon(
-                                                  Icons.person,
-                                                  color: Colors.white54,
-                                                  size: 24),
-                                            ),
+                                          : const Icon(
+                                              Icons.person,
+                                              color: Colors.white54,
+                                              size: 24),
                                     ),
                                   ),
                                   const SizedBox(width: 12),

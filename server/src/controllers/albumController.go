@@ -3,6 +3,8 @@ package controllers
 import (
 	"context"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	database "server/src/db"
@@ -102,9 +104,43 @@ func GetAlbum() gin.HandlerFunc {
 		var artist model.Artist
 		_ = artistCollection.FindOne(ctx, bson.M{"_id": album.ArtistID}).Decode(&artist)
 
+		serverURL := os.Getenv("SERVER_URL")
+		album.AlbumCoverUrl = serverURL + album.AlbumCoverUrl
+
+		// Enrich musics with coverUrl, color, artistName, albumName, full url
+		enrichedMusics := make([]gin.H, len(musics))
+		for i, m := range musics {
+			coverUrl := m.CoverUrl
+			color := m.Color
+			if coverUrl == "" {
+				coverUrl = album.AlbumCoverUrl
+			} else if !strings.HasPrefix(coverUrl, "http") {
+				coverUrl = serverURL + coverUrl
+			}
+			if color == "" {
+				color = album.Color
+			}
+
+			enrichedMusics[i] = gin.H{
+				"_id":        m.ID,
+				"url":        serverURL + m.Url,
+				"name":       m.Name,
+				"artistId":   m.ArtistID,
+				"artistName": artist.Name,
+				"albumId":    m.AlbumID,
+				"albumName":  album.Name,
+				"genre":      m.Genre,
+				"coverUrl":   coverUrl,
+				"color":      color,
+				"waveform":   m.Waveform,
+				"createdAt":  m.CreatedAt,
+				"updatedAt":  m.UpdatedAt,
+			}
+		}
+
 		response := gin.H{
 			"album":      album,
-			"musics":     musics,
+			"musics":     enrichedMusics,
 			"artistName": artist.Name,
 		}
 

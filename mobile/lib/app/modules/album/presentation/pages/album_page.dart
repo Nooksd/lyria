@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
@@ -86,7 +87,7 @@ class _AlbumPageState extends State<AlbumPage> {
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final coverUrl = album!['albumCoverUrl'] ?? '';
+    final coverUrl = ApiConfig.fixImageUrl(album!['albumCoverUrl']);
     final name = album!['name'] ?? '';
     final artistName = album!['artistName'] ?? '';
     final artistId = album!['artistId'] ?? '';
@@ -146,42 +147,31 @@ class _AlbumPageState extends State<AlbumPage> {
                                   ClipRRect(
                                     borderRadius:
                                         BorderRadius.circular(16),
-                                    child: SizedBox(
+                                    child: Container(
                                       width: 200,
                                       height: 200,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .primary,
                                       child: coverUrl.isNotEmpty
                                           ? CachedNetworkImage(
                                               imageUrl: coverUrl,
                                               fit: BoxFit.cover,
                                               placeholder: (_, __) =>
-                                                  Container(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary,
-                                              ),
+                                                  const SizedBox.shrink(),
                                               errorWidget:
                                                   (_, __, ___) =>
-                                                      Container(
-                                                color: Theme.of(context)
-                                                    .colorScheme
-                                                    .primary,
-                                                child: const Icon(
-                                                    Icons.album,
-                                                    size: 80,
-                                                    color:
-                                                        Colors.white54),
-                                              ),
+                                                      const Icon(
+                                                          Icons.album,
+                                                          size: 80,
+                                                          color:
+                                                              Colors.white54),
                                             )
-                                          : Container(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              child: const Icon(
-                                                  Icons.album,
-                                                  size: 80,
-                                                  color:
-                                                      Colors.white54),
-                                            ),
+                                          : const Icon(
+                                              Icons.album,
+                                              size: 80,
+                                              color:
+                                                  Colors.white54),
                                     ),
                                   ),
                                   const SizedBox(height: 16),

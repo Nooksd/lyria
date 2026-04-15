@@ -85,19 +85,24 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> setQueue(List<Music> queue, int currentIndex) async {
     if (_isSettingQueue) return;
     _isSettingQueue = true;
-    await _playlist.clear();
-    final sources = <AudioSource>[];
-    for (final music in queue) {
-      sources.add(await _createAudioSource(music));
-    }
+    try {
+      await _playlist.clear();
+      final sources = <AudioSource>[];
+      for (final music in queue) {
+        sources.add(await _createAudioSource(music));
+      }
 
-    await _playlist.addAll(sources);
-    await _audioPlayer.setAudioSource(_playlist, initialIndex: currentIndex);
+      await _playlist.addAll(sources);
+      await _audioPlayer.setAudioSource(_playlist, initialIndex: currentIndex);
 
-    if (!_audioPlayer.playing) {
-      await _audioPlayer.play();
+      if (!_audioPlayer.playing) {
+        await _audioPlayer.play();
+      }
+    } catch (e) {
+      debugPrint('Erro ao configurar fila: $e');
+    } finally {
+      _isSettingQueue = false;
     }
-    _isSettingQueue = false;
   }
 
   Future<void> addToQueue(Music music) async {
@@ -174,8 +179,10 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> stop() async {
     await _audioPlayer.stop();
+    await _audioPlayer.seek(Duration.zero);
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.idle,
+      updatePosition: Duration.zero,
     ));
     await _playlist.clear();
   }

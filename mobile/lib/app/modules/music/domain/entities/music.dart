@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/modules/music/domain/entities/lyrics.dart';
 
 class Music extends Equatable {
@@ -39,17 +40,17 @@ class Music extends Equatable {
       id: json['_id'] as String,
       url: json['url'] as String,
       name: json['name'] as String,
-      artistId: json['artistId'] as String,
-      artistName: json['artistName'] as String,
-      albumId: json['albumId'] as String,
-      albumName: json['albumName'] as String,
-      waveform: (json['waveform'] as List).map((e) => (e as num).toDouble()).toList(),
-      genre: json['genre'] as String,
-      color: json['color'] as String,
-      coverUrl: json['coverUrl'] as String,
+      artistId: json['artistId'] as String? ?? '',
+      artistName: json['artistName'] as String? ?? '',
+      albumId: json['albumId'] as String? ?? '',
+      albumName: json['albumName'] as String? ?? '',
+      waveform: (json['waveform'] as List?)?.map((e) => (e as num).toDouble()).toList() ?? [],
+      genre: json['genre'] as String? ?? '',
+      color: json['color'] as String? ?? '',
+      coverUrl: ApiConfig.fixImageUrl(json['coverUrl'] as String?),
       lyrics: json['lyrics'] != null ? (json['lyrics'] as List).map((e) => LyricLine.fromJson(e)).toList() : null,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: DateTime.parse(json['updatedAt'] as String),
+      createdAt: json['createdAt'] != null ? DateTime.parse(json['createdAt'] as String) : DateTime.now(),
+      updatedAt: json['updatedAt'] != null ? DateTime.parse(json['updatedAt'] as String) : DateTime.now(),
     );
   }
 

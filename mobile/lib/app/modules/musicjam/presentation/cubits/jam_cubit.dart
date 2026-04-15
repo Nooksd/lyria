@@ -9,6 +9,7 @@ import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 
 class JamState {
   final bool isInJam;
@@ -106,7 +107,7 @@ class JamCubit extends Cubit<JamState> {
   Future<void> _connectWebSocket(String simpleId) async {
     final token = await _storage.get('accessToken');
     final uri = Uri.parse(
-        'ws://192.168.1.101:9000/musicjam/ws/$simpleId?token=$token');
+        '${ApiConfig.wsUrl}/musicjam/ws/$simpleId?token=$token');
 
     try {
       _channel = WebSocketChannel.connect(uri);

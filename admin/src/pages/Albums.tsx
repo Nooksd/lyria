@@ -130,6 +130,7 @@ export default function Albums() {
               <table>
                 <thead>
                   <tr>
+                    <th style={{ width: 48 }}>Capa</th>
                     <th>Nome</th>
                     <th>Artista</th>
                     <th>Cor</th>
@@ -140,6 +141,13 @@ export default function Albums() {
                 <tbody>
                   {albums.map((a) => (
                     <tr key={a._id}>
+                      <td>
+                        {a.albumCoverUrl ? (
+                          <img className="table-thumb" src={a.albumCoverUrl} alt={a.name} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <span className="table-thumb-empty">—</span>
+                        )}
+                      </td>
                       <td style={{ fontWeight: 500 }}>{a.name}</td>
                       <td>{artistName(a.artistId)}</td>
                       <td>

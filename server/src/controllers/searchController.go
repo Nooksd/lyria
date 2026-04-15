@@ -147,16 +147,16 @@ func GeneralSearch() gin.HandlerFunc {
 						"as":           "album",
 					},
 				},
-				{"$unwind": "$album"},
+				{"$unwind": bson.M{"path": "$album", "preserveNullAndEmptyArrays": true}},
 				{
 					"$lookup": bson.M{
 						"from":         "artists",
-						"localField":   "album.artistId",
+						"localField":   "artistId",
 						"foreignField": "_id",
 						"as":           "artist",
 					},
 				},
-				{"$unwind": "$artist"},
+				{"$unwind": bson.M{"path": "$artist", "preserveNullAndEmptyArrays": true}},
 			}
 
 			musicCursor, err := musicCollection.Aggregate(ctx, musicPipeline)
@@ -171,10 +171,48 @@ func GeneralSearch() gin.HandlerFunc {
 			}
 			for i := range musics {
 				musicData := musics[i]
-				musicData["coverUrl"] = os.Getenv("SERVER_URL") + musics[i]["album"].(bson.M)["albumCoverUrl"].(string)
-				musicData["artistName"] = musics[i]["artist"].(bson.M)["name"].(string)
-				musicData["albumName"] = musics[i]["album"].(bson.M)["name"].(string)
-				musicData["color"] = musics[i]["album"].(bson.M)["color"].(string)
+
+				// Cover URL: music's own → album's → empty
+				coverUrl := ""
+				if mc, ok := musicData["coverUrl"].(string); ok && mc != "" {
+					if strings.HasPrefix(mc, "http") {
+						coverUrl = mc
+					} else {
+						coverUrl = os.Getenv("SERVER_URL") + mc
+					}
+				} else if album, ok := musicData["album"].(bson.M); ok {
+					if ac, ok := album["albumCoverUrl"].(string); ok && ac != "" {
+						coverUrl = os.Getenv("SERVER_URL") + ac
+					}
+				}
+				musicData["coverUrl"] = coverUrl
+
+				// Color: music's own → album's
+				if mc, ok := musicData["color"].(string); !ok || mc == "" {
+					if album, ok := musicData["album"].(bson.M); ok {
+						if ac, ok := album["color"].(string); ok {
+							musicData["color"] = ac
+						}
+					}
+				}
+
+				// Artist/Album names
+				artistName := ""
+				if artist, ok := musicData["artist"].(bson.M); ok {
+					if n, ok := artist["name"].(string); ok {
+						artistName = n
+					}
+				}
+				musicData["artistName"] = artistName
+
+				albumName := ""
+				if album, ok := musicData["album"].(bson.M); ok {
+					if n, ok := album["name"].(string); ok {
+						albumName = n
+					}
+				}
+				musicData["albumName"] = albumName
+
 				musicData["url"] = os.Getenv("SERVER_URL") + musics[i]["url"].(string)
 
 				lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", musics[i]["_id"].(primitive.ObjectID).Hex())
@@ -188,13 +226,16 @@ func GeneralSearch() gin.HandlerFunc {
 					}
 				}
 
+				delete(musicData, "album")
+				delete(musicData, "artist")
+
 				results = append(results, bson.M{
 					"name":        musics[i]["name"],
 					"type":        "music",
 					"id":          musics[i]["_id"],
-					"description": "Música · " + musics[i]["artist"].(bson.M)["name"].(string),
+					"description": "Música · " + artistName,
 					"music":       musicData,
-					"imageUrl":    musicData["coverUrl"],
+					"imageUrl":    coverUrl,
 				})
 			}
 		}

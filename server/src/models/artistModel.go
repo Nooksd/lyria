@@ -13,6 +13,7 @@ type Artist struct {
 	AvatarUrl string             `json:"avatarUrl" bson:"avatarUrl" validate:"required"`
 	BannerUrl string             `json:"bannerUrl" bson:"bannerUrl"`
 	Bio       string             `json:"bio" bson:"bio"`
+	Color     string             `json:"color" bson:"color"`
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
 	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
 }

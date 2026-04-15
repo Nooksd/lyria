@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lyria/app/app_router.dart';
@@ -40,7 +41,6 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
-    _avatarCacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
     _loadProfile();
   }
 
@@ -87,6 +87,12 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final file = File(picked.path);
       await http.multiPart('/image/avatar', body: {'avatar': file});
+
+      final user = authCubit.currentUser;
+      if (user != null && user.avatarUrl.isNotEmpty) {
+        await DefaultCacheManager().removeFile(user.avatarUrl);
+      }
+
       setState(() {
         _avatarCacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
       });
@@ -114,7 +120,9 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     final avatarUrl = user != null && user.avatarUrl.isNotEmpty
-        ? '${user.avatarUrl}?v=$_avatarCacheBuster'
+        ? (_avatarCacheBuster != null
+            ? '${user.avatarUrl}?v=$_avatarCacheBuster'
+            : user.avatarUrl)
         : '';
     final avatarCacheKey =
         user != null && user.avatarUrl.isNotEmpty ? user.avatarUrl : null;
@@ -180,30 +188,26 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                           ),
                           child: ClipOval(
-                            child: SizedBox(
+                            child: Container(
                               width: 106,
                               height: 106,
+                              color: primary,
                               child: avatarUrl.isNotEmpty
                                   ? CachedNetworkImage(
                                       imageUrl: avatarUrl,
                                       cacheKey: avatarCacheKey,
                                       fit: BoxFit.cover,
-                                      placeholder: (_, __) => Container(
-                                        color: primary,
-                                        child: const Icon(Icons.person,
-                                            size: 50, color: Colors.white54),
-                                      ),
-                                      errorWidget: (_, __, ___) => Container(
-                                        color: primary,
-                                        child: const Icon(Icons.person,
-                                            size: 50, color: Colors.white54),
-                                      ),
+                                      placeholder: (_, __) =>
+                                          const Icon(Icons.person,
+                                              size: 50,
+                                              color: Colors.white54),
+                                      errorWidget: (_, __, ___) =>
+                                          const Icon(Icons.person,
+                                              size: 50,
+                                              color: Colors.white54),
                                     )
-                                  : Container(
-                                      color: primary,
-                                      child: const Icon(Icons.person,
-                                          size: 50, color: Colors.white54),
-                                    ),
+                                  : const Icon(Icons.person,
+                                      size: 50, color: Colors.white54),
                             ),
                           ),
                         ),

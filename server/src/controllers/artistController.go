@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	database "server/src/db"
@@ -105,6 +106,13 @@ func GetArtist() gin.HandlerFunc {
 			return
 		}
 
+		// Build album lookup map for enriching musics
+		albumMap := make(map[primitive.ObjectID]model.Album)
+		for i, a := range albums {
+			albumMap[a.ID] = a
+			albums[i].AlbumCoverUrl = serverURL + a.AlbumCoverUrl
+		}
+
 		var musics []model.Music
 
 		musicCursor, err := musicCollection.Find(
@@ -121,10 +129,49 @@ func GetArtist() gin.HandlerFunc {
 			return
 		}
 
+		// Enrich musics with coverUrl, color, albumName, artistName, full url
+		enrichedMusics := make([]gin.H, len(musics))
+		for i, m := range musics {
+			coverUrl := m.CoverUrl
+			color := m.Color
+			albumName := ""
+			if a, ok := albumMap[m.AlbumID]; ok {
+				albumName = a.Name
+				if coverUrl == "" {
+					coverUrl = serverURL + a.AlbumCoverUrl
+				}
+				if color == "" {
+					color = a.Color
+				}
+			}
+			if coverUrl == "" {
+				coverUrl = serverURL + "/image/cover/" + m.ID.Hex()
+			}
+			if m.CoverUrl != "" && !strings.HasPrefix(m.CoverUrl, "http") {
+				coverUrl = serverURL + m.CoverUrl
+			}
+
+			enrichedMusics[i] = gin.H{
+				"_id":        m.ID,
+				"url":        serverURL + m.Url,
+				"name":       m.Name,
+				"artistId":   m.ArtistID,
+				"artistName": artist.Name,
+				"albumId":    m.AlbumID,
+				"albumName":  albumName,
+				"genre":      m.Genre,
+				"coverUrl":   coverUrl,
+				"color":      color,
+				"waveform":   m.Waveform,
+				"createdAt":  m.CreatedAt,
+				"updatedAt":  m.UpdatedAt,
+			}
+		}
+
 		response := gin.H{
 			"artist": artist,
 			"albums": albums,
-			"musics": musics,
+			"musics": enrichedMusics,
 		}
 
 		c.JSON(http.StatusOK, response)
@@ -176,6 +223,9 @@ func UpdateArtist() gin.HandlerFunc {
 		}
 		if updateData.Bio != "" {
 			currentArtist.Bio = updateData.Bio
+		}
+		if updateData.Color != "" {
+			currentArtist.Color = updateData.Color
 		}
 
 		currentArtist.UpdatedAt = time.Now()

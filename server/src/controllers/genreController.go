@@ -80,16 +80,29 @@ func SearchByGenre() gin.HandlerFunc {
 		musicPipeline := []bson.M{
 			{"$match": bson.M{"genre": bson.M{"$regex": genre, "$options": "i"}}},
 			{"$lookup": bson.M{"from": "albums", "localField": "albumId", "foreignField": "_id", "as": "album"}},
-			{"$unwind": "$album"},
-			{"$lookup": bson.M{"from": "artists", "localField": "album.artistId", "foreignField": "_id", "as": "artist"}},
-			{"$unwind": "$artist"},
+			{"$unwind": bson.M{"path": "$album", "preserveNullAndEmptyArrays": true}},
+			{"$lookup": bson.M{"from": "artists", "localField": "artistId", "foreignField": "_id", "as": "artist"}},
+			{"$unwind": bson.M{"path": "$artist", "preserveNullAndEmptyArrays": true}},
 			{"$addFields": bson.M{
-				"coverUrl":   bson.M{"$concat": []interface{}{serverURL, "$album.albumCoverUrl"}},
-				"artistName": "$artist.name",
-				"albumName":  "$album.name",
-				"color":      "$album.color",
+				"coverUrl": bson.M{"$cond": bson.M{
+					"if":   bson.M{"$and": []interface{}{bson.M{"$ne": []interface{}{"$coverUrl", ""}}, bson.M{"$ne": []interface{}{"$coverUrl", nil}}}},
+					"then": bson.M{"$concat": []interface{}{serverURL, "$coverUrl"}},
+					"else": bson.M{"$cond": bson.M{
+						"if":   bson.M{"$ne": []interface{}{"$album.albumCoverUrl", nil}},
+						"then": bson.M{"$concat": []interface{}{serverURL, "$album.albumCoverUrl"}},
+						"else": "",
+					}},
+				}},
+				"color": bson.M{"$cond": bson.M{
+					"if":   bson.M{"$and": []interface{}{bson.M{"$ne": []interface{}{"$color", ""}}, bson.M{"$ne": []interface{}{"$color", nil}}}},
+					"then": "$color",
+					"else": bson.M{"$ifNull": []interface{}{"$album.color", ""}},
+				}},
+				"artistName": bson.M{"$ifNull": []interface{}{"$artist.name", ""}},
+				"albumName":  bson.M{"$ifNull": []interface{}{"$album.name", ""}},
 				"url":        bson.M{"$concat": []interface{}{serverURL, "$url"}},
 			}},
+			{"$project": bson.M{"album": 0, "artist": 0}},
 			{"$skip": skip},
 			{"$limit": limitInt},
 		}

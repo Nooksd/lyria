@@ -18,6 +18,7 @@ import 'package:lyria/app/modules/library/data/api_playlist_repo.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/musicjam/presentation/cubits/jam_cubit.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 
 final getIt = GetIt.instance;
 
@@ -27,7 +28,7 @@ Future<void> setupLocator(AudioHandler audioHandler) async {
 
   // Connectivity
   getIt.registerSingleton<ConnectivityService>(
-    ConnectivityService(serverBaseUrl: 'http://192.168.1.101:9000'),
+    ConnectivityService(serverBaseUrl: ApiConfig.baseUrl),
   );
   getIt.registerSingleton<ConnectivityCubit>(
     ConnectivityCubit(connectivityService: getIt<ConnectivityService>()),

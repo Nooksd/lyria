@@ -87,19 +87,41 @@ func UpdateMusic() gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		var updateData model.Music
+		var body map[string]interface{}
 
-		if err := c.ShouldBindJSON(&updateData); err != nil {
+		if err := c.ShouldBindJSON(&body); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Dados inválidos"})
 			return
 		}
 
-		updateData.UpdatedAt = time.Now()
+		update := bson.M{}
+		if name, ok := body["name"].(string); ok && name != "" {
+			update["name"] = name
+		}
+		if artistId, ok := body["artistId"].(string); ok && artistId != "" {
+			oid, err := primitive.ObjectIDFromHex(artistId)
+			if err == nil {
+				update["artistId"] = oid
+			}
+		}
+		if albumId, ok := body["albumId"].(string); ok && albumId != "" {
+			oid, err := primitive.ObjectIDFromHex(albumId)
+			if err == nil {
+				update["albumId"] = oid
+			}
+		}
+		if genre, ok := body["genre"].(string); ok {
+			update["genre"] = genre
+		}
+		if color, ok := body["color"].(string); ok && color != "" {
+			update["color"] = color
+		}
+		update["updatedAt"] = time.Now()
 
 		_, err = musicCollection.UpdateOne(
 			ctx,
 			bson.M{"_id": id},
-			bson.M{"$set": updateData},
+			bson.M{"$set": update},
 		)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar a música"})

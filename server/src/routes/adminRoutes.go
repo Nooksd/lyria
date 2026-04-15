@@ -40,6 +40,7 @@ func AdminRoutes(router *gin.Engine) {
 		adminProtected.POST("/music/create", controller.CreateMusic())
 		adminProtected.PUT("/music/update/:musicId", controller.UpdateMusic())
 		adminProtected.DELETE("/music/delete/:musicId", controller.DeleteMusic())
+		adminProtected.POST("/image/music/:musicId", controller.UploadMusicCover())
 
 		// Search
 		adminProtected.GET("/search", controller.GeneralSearch())
@@ -48,5 +49,13 @@ func AdminRoutes(router *gin.Engine) {
 		adminProtected.GET("/artists", controller.ListArtists())
 		adminProtected.GET("/albums", controller.ListAlbums())
 		adminProtected.GET("/musics", controller.ListMusics())
+
+		// Scoped listing
+		adminProtected.GET("/artist/:artistId/albums", controller.ListArtistAlbums())
+		adminProtected.GET("/artist/:artistId/musics", controller.ListArtistMusics())
+		adminProtected.GET("/album/:albumId/musics", controller.ListAlbumMusics())
+
+		// Spotify import
+		adminProtected.GET("/import/spotify", controller.ImportFromSpotify())
 	}
 }

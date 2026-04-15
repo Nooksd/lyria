@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -92,6 +93,11 @@ func AdminAuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		c.Set("user", jwt.MapClaims{
+			"UserType": "ADMIN",
+			"UserId":   "admin_panel",
+		})
+
 		c.Next()
 	}
 }
@@ -119,6 +125,16 @@ func ListArtists() gin.HandlerFunc {
 		if err := cursor.All(ctx, &artists); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao decodificar artistas"})
 			return
+		}
+
+		serverURL := os.Getenv("SERVER_URL")
+		for i := range artists {
+			if artists[i].AvatarUrl != "" {
+				artists[i].AvatarUrl = serverURL + artists[i].AvatarUrl
+			}
+			if artists[i].BannerUrl != "" {
+				artists[i].BannerUrl = serverURL + artists[i].BannerUrl
+			}
 		}
 
 		total, _ := artistCollection.CountDocuments(ctx, bson.M{})
@@ -152,6 +168,11 @@ func ListAlbums() gin.HandlerFunc {
 			return
 		}
 
+		serverURL := os.Getenv("SERVER_URL")
+		for i := range albums {
+			albums[i].AlbumCoverUrl = serverURL + albums[i].AlbumCoverUrl
+		}
+
 		total, _ := albumCollection.CountDocuments(ctx, bson.M{})
 
 		c.JSON(http.StatusOK, gin.H{"albums": albums, "total": total, "page": page})
@@ -183,8 +204,120 @@ func ListMusics() gin.HandlerFunc {
 			return
 		}
 
+		serverURL := os.Getenv("SERVER_URL")
+		for i := range musics {
+			if musics[i].CoverUrl != "" {
+				musics[i].CoverUrl = serverURL + musics[i].CoverUrl
+			}
+			if musics[i].Url != "" {
+				musics[i].Url = serverURL + musics[i].Url
+			}
+		}
+
 		total, _ := musicCollection.CountDocuments(ctx, bson.M{})
 
 		c.JSON(http.StatusOK, gin.H{"musics": musics, "total": total, "page": page})
+	}
+}
+
+func ListArtistAlbums() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		artistId := c.Param("artistId")
+		objectId, err := primitive.ObjectIDFromHex(artistId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID de artista inválido"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		opts := options.Find().SetSort(bson.D{{Key: "name", Value: 1}})
+		cursor, err := albumCollection.Find(ctx, bson.M{"artistId": objectId}, opts)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar álbuns"})
+			return
+		}
+
+		var albums []model.Album
+		if err := cursor.All(ctx, &albums); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao decodificar álbuns"})
+			return
+		}
+
+		serverURL := os.Getenv("SERVER_URL")
+		for i := range albums {
+			albums[i].AlbumCoverUrl = serverURL + albums[i].AlbumCoverUrl
+		}
+
+		c.JSON(http.StatusOK, gin.H{"albums": albums})
+	}
+}
+
+func ListArtistMusics() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		artistId := c.Param("artistId")
+		objectId, err := primitive.ObjectIDFromHex(artistId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID de artista inválido"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		opts := options.Find().SetSort(bson.D{{Key: "name", Value: 1}})
+		cursor, err := musicCollection.Find(ctx, bson.M{"artistId": objectId}, opts)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
+			return
+		}
+
+		var musics []model.Music
+		if err := cursor.All(ctx, &musics); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao decodificar músicas"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"musics": musics})
+	}
+}
+
+func ListAlbumMusics() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		albumId := c.Param("albumId")
+		objectId, err := primitive.ObjectIDFromHex(albumId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID de álbum inválido"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		opts := options.Find().SetSort(bson.D{{Key: "name", Value: 1}})
+		cursor, err := musicCollection.Find(ctx, bson.M{"albumId": objectId}, opts)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
+			return
+		}
+
+		var musics []model.Music
+		if err := cursor.All(ctx, &musics); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao decodificar músicas"})
+			return
+		}
+
+		serverURL := os.Getenv("SERVER_URL")
+		for i := range musics {
+			if musics[i].CoverUrl != "" {
+				musics[i].CoverUrl = serverURL + musics[i].CoverUrl
+			}
+			if musics[i].Url != "" {
+				musics[i].Url = serverURL + musics[i].Url
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{"musics": musics})
 	}
 }

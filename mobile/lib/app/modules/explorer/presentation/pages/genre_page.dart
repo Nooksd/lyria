@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
@@ -103,7 +104,7 @@ class _GenrePageState extends State<GenrePage> {
                         itemCount: artists.length,
                         itemBuilder: (context, index) {
                           final artist = artists[index];
-                          final avatarUrl = artist['avatarUrl'] ?? '';
+                          final avatarUrl = ApiConfig.fixImageUrl(artist['avatarUrl']);
                           final name = artist['name'] ?? '';
 
                           return GestureDetector(
@@ -116,30 +117,20 @@ class _GenrePageState extends State<GenrePage> {
                               child: Column(
                                 children: [
                                   ClipOval(
-                                    child: SizedBox(
+                                    child: Container(
                                       width: 90,
                                       height: 90,
+                                      color: Theme.of(context).colorScheme.primary,
                                       child: avatarUrl.isNotEmpty
                                           ? CachedNetworkImage(
                                               imageUrl: avatarUrl,
                                               fit: BoxFit.cover,
-                                              placeholder: (_, __) => Container(
-                                                color: Theme.of(context).colorScheme.primary,
-                                                child: const Icon(Icons.person, color: Colors.white54, size: 40),
-                                              ),
-                                              errorWidget: (_, __, ___) => Container(
-                                                color: Theme.of(context).colorScheme.primary,
-                                                child: const Icon(Icons.person, color: Colors.white54, size: 40),
-                                              ),
+                                              placeholder: (_, __) => const Icon(Icons.person, color: Colors.white54, size: 40),
+                                              errorWidget: (_, __, ___) => const Icon(Icons.person, color: Colors.white54, size: 40),
                                             )
-                                          : Container(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              child: const Icon(Icons.person,
-                                                  color: Colors.white54,
-                                                  size: 40),
-                                            ),
+                                          : const Icon(Icons.person,
+                                              color: Colors.white54,
+                                              size: 40),
                                     ),
                                   ),
                                   const SizedBox(height: 8),
@@ -178,7 +169,7 @@ class _GenrePageState extends State<GenrePage> {
                         itemCount: albums.length,
                         itemBuilder: (context, index) {
                           final album = albums[index];
-                          final coverUrl = album['albumCoverUrl'] ?? '';
+                          final coverUrl = ApiConfig.fixImageUrl(album['albumCoverUrl']);
                           final albumName = album['name'] ?? '';
 
                           return GestureDetector(
@@ -193,26 +184,18 @@ class _GenrePageState extends State<GenrePage> {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(12),
-                                    child: SizedBox(
+                                    child: Container(
                                       width: 150,
                                       height: 150,
+                                      color: Theme.of(context).colorScheme.primary,
                                       child: coverUrl.isNotEmpty
                                           ? CachedNetworkImage(
                                               imageUrl: coverUrl,
                                               fit: BoxFit.cover,
-                                              placeholder: (_, __) => Container(
-                                                color: Theme.of(context).colorScheme.primary,
-                                              ),
-                                              errorWidget: (_, __, ___) => Container(
-                                                color: Theme.of(context).colorScheme.primary,
-                                                child: const Icon(Icons.album, color: Colors.white54, size: 40),
-                                              ),
+                                              placeholder: (_, __) => const SizedBox.shrink(),
+                                              errorWidget: (_, __, ___) => const Icon(Icons.album, color: Colors.white54, size: 40),
                                             )
-                                          : Container(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                            ),
+                                          : const Icon(Icons.album, color: Colors.white54, size: 40),
                                     ),
                                   ),
                                   const SizedBox(height: 8),

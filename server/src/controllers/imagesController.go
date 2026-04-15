@@ -1,13 +1,17 @@
 package controllers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 func UploadAvatar() gin.HandlerFunc {
@@ -95,6 +99,36 @@ func UploadArtistBanner() gin.HandlerFunc {
 	}
 }
 
+func UploadMusicCover() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		musicId := c.Param("musicId")
+		if musicId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID não fornecido"})
+			return
+		}
+
+		objectId, err := primitive.ObjectIDFromHex(musicId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		coverUrl := "/image/music_cover/" + musicId
+		musicCollection.UpdateOne(ctx, bson.M{"_id": objectId}, bson.M{"$set": bson.M{"coverUrl": coverUrl, "updatedAt": time.Now()}})
+
+		handleFileUpload(c, musicId, "music_cover", "png")
+	}
+}
+
+func GetMusicCover() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		getImage(c, "music_cover")
+	}
+}
+
 func GetBanner() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		getImage(c, "banner")
@@ -145,14 +179,18 @@ func getImage(c *gin.Context, subDir string) {
 	filename := fmt.Sprintf("%s.png", id)
 	filePath := filepath.Join("uploads", "image", subDir, filename)
 
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		filePath = filepath.Join("uploads", "image", subDir, "default.png")
-	}
-
 	fileInfo, err := os.Stat(filePath)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Imagem não encontrada"})
-		return
+		// Fall back to default image
+		defaultPath := filepath.Join("uploads", "image", subDir, "default.png")
+		defaultInfo, defaultErr := os.Stat(defaultPath)
+		if defaultErr != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Imagem não encontrada"})
+			return
+		}
+		fileInfo = defaultInfo
+		filePath = defaultPath
+		id = "default"
 	}
 
 	etag := fmt.Sprintf("%s-%d", id, fileInfo.ModTime().Unix())

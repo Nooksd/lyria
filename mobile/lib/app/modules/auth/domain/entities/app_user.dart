@@ -1,3 +1,5 @@
+import 'package:lyria/app/core/config/api_config.dart';
+
 class AppUser {
   final String uid;
   final String avatarUrl;
@@ -27,7 +29,7 @@ class AppUser {
       uid: map['uid'] as String,
       name: map['name'] as String,
       userType: map['userType'] ?? "USER",
-      avatarUrl: map['avatarUrl'],
+      avatarUrl: ApiConfig.fixImageUrl(map['avatarUrl']),
       email: map['email'],
       favorites: List<String>.from(map['favorites'] ?? []),
     );
