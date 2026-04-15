@@ -414,6 +414,18 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 				return
 			}
 
+			// Anti-bot: sleep between YouTube downloads to avoid rate limiting
+			if processedTracks > 0 {
+				select {
+				case <-ctx.Done():
+					q.addLog(jobID, "progress", "Importação cancelada.")
+					q.setResult(jobID, totalAlbums, totalMusics, failedTracks, artistOID.Hex())
+					q.setStatus(jobID, "cancelled")
+					return
+				case <-time.After(6 * time.Second):
+				}
+			}
+
 			processedTracks++
 			q.addLog(jobID, "progress", fmt.Sprintf("🔽 [%d/%d] Baixando: %s - %s", processedTracks, totalTracks, spArtist.Name, track.Name))
 			q.updateProgress(jobID, processedTracks, totalTracks)
@@ -431,7 +443,9 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 				"--no-playlist",
 				"--socket-timeout", "30",
 				"--retries", "3",
-				"--extractor-args", "youtube:player_client=ios,android,web",
+				"--sleep-requests", "1.5",
+				"--no-warnings",
+				"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 			}
 			cookiesPath := "/opt/lyria/server/cookies.txt"
 			if info, err := os.Stat(cookiesPath); err == nil && info.Size() > 0 {
@@ -445,8 +459,8 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 			if err := cmd.Run(); err != nil {
 				failedTracks++
 				errMsg := cmdStderr.String()
-				if len(errMsg) > 200 {
-					errMsg = errMsg[len(errMsg)-200:]
+				if len(errMsg) > 500 {
+					errMsg = errMsg[len(errMsg)-500:]
 				}
 				reason := fmt.Sprintf("%s | %s", err.Error(), errMsg)
 				q.addLog(jobID, "progress", fmt.Sprintf("⚠ Falha ao baixar '%s': %s", track.Name, reason))

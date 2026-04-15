@@ -297,6 +297,15 @@ func ImportFromSpotify() gin.HandlerFunc {
 				default:
 				}
 
+				// Anti-bot: sleep between YouTube downloads to avoid rate limiting
+				if processedTracks > 0 {
+					select {
+					case <-c.Request.Context().Done():
+						return
+					case <-time.After(6 * time.Second):
+					}
+				}
+
 				processedTracks++
 				if !sse.send("progress", map[string]interface{}{
 					"message": fmt.Sprintf("🔽 [%d/%d] Baixando: %s - %s", processedTracks, totalTracks, spArtist.Name, track.Name),
@@ -320,7 +329,9 @@ func ImportFromSpotify() gin.HandlerFunc {
 					"--no-playlist",
 					"--socket-timeout", "30",
 					"--retries", "3",
-					"--extractor-args", "youtube:player_client=ios,android,web",
+					"--sleep-requests", "1.5",
+					"--no-warnings",
+					"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 				}
 				// Use cookies file if available (absolute path, non-empty)
 				cookiesPath := "/opt/lyria/server/cookies.txt"
@@ -335,8 +346,8 @@ func ImportFromSpotify() gin.HandlerFunc {
 				if err := cmd.Run(); err != nil {
 					failedTracks++
 					errMsg := cmdStderr.String()
-					if len(errMsg) > 200 {
-						errMsg = errMsg[len(errMsg)-200:]
+					if len(errMsg) > 500 {
+						errMsg = errMsg[len(errMsg)-500:]
 					}
 					sse.send("progress", map[string]string{
 						"message": fmt.Sprintf("⚠ Falha ao baixar '%s': %s | %s", track.Name, err.Error(), errMsg),
