@@ -303,60 +303,158 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 	q.addLog(jobID, "progress", fmt.Sprintf("Encontrados %d álbuns/singles com %d faixas no total", len(albums), totalTracks))
 	q.updateProgress(jobID, 0, totalTracks)
 
-	// 4. Create artist in DB
+	// 4. Resolve or create artist — check if already exists (dedup / resume)
 	genre := ""
 	if len(spArtist.Genres) > 0 {
 		genre = spArtist.Genres[0]
 	}
 
-	artistOID := primitive.NewObjectID()
-	avatarPath := filepath.Join("uploads", "image", "avatar", artistOID.Hex()+".png")
+	var artistOID primitive.ObjectID
+	var artistColor string
+	isExistingArtist := false
 
-	artistColor := "#8b5cf6"
-	if len(spArtist.Images) > 0 {
-		q.addLog(jobID, "progress", "Baixando foto do artista...")
-		if err := downloadAndSaveImage(spArtist.Images[0].URL, avatarPath); err == nil {
-			if col, err := extractDominantLightColor(avatarPath); err == nil {
-				artistColor = col
+	// First: check if the job already has an artistId (resume after restart)
+	if job.ArtistID != "" {
+		if oid, err := primitive.ObjectIDFromHex(job.ArtistID); err == nil {
+			checkCtx, checkCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			count, _ := artistCollection.CountDocuments(checkCtx, bson.M{"_id": oid})
+			checkCancel()
+			if count > 0 {
+				artistOID = oid
+				isExistingArtist = true
+				q.addLog(jobID, "progress", fmt.Sprintf("♻ Retomando importação do artista: %s", spArtist.Name))
 			}
 		}
 	}
 
-	q.addLog(jobID, "progress", "Buscando bio do artista...")
-	artistBio := fetchAudioDBBio(spArtist.Name)
-	if artistBio != "" {
-		q.addLog(jobID, "progress", "Bio encontrada ✓")
-	} else {
-		q.addLog(jobID, "progress", "Bio não encontrada, continuando...")
+	// Second: check if an artist with this SpotifyID already exists (dedup)
+	if artistOID.IsZero() {
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var existingArtist model.Artist
+		err := artistCollection.FindOne(checkCtx, bson.M{"spotifyId": artistSpotifyId}).Decode(&existingArtist)
+		checkCancel()
+		if err == nil {
+			artistOID = existingArtist.ID
+			artistColor = existingArtist.Color
+			isExistingArtist = true
+			q.addLog(jobID, "progress", fmt.Sprintf("🔄 Artista '%s' já existe — sincronizando músicas novas...", spArtist.Name))
+		}
 	}
 
-	now := time.Now()
-	dbArtist := model.Artist{
-		ID:        artistOID,
-		Name:      spArtist.Name,
-		Genres:    spArtist.Genres,
-		AvatarUrl: "/image/avatar/" + artistOID.Hex(),
-		BannerUrl: "/image/banner/" + artistOID.Hex(),
-		Bio:       artistBio,
-		Color:     artistColor,
-		CreatedAt: now,
-		UpdatedAt: now,
+	// Third: check by name (fallback dedup)
+	if artistOID.IsZero() {
+		checkCtx, checkCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var existingArtist model.Artist
+		err := artistCollection.FindOne(checkCtx, bson.M{"name": spArtist.Name}).Decode(&existingArtist)
+		checkCancel()
+		if err == nil {
+			artistOID = existingArtist.ID
+			artistColor = existingArtist.Color
+			isExistingArtist = true
+			// Also backfill SpotifyID
+			bfCtx, bfCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			artistCollection.UpdateOne(bfCtx, bson.M{"_id": artistOID}, bson.M{"$set": bson.M{"spotifyId": artistSpotifyId, "updatedAt": time.Now()}})
+			bfCancel()
+			q.addLog(jobID, "progress", fmt.Sprintf("🔄 Artista '%s' já existe (por nome) — sincronizando músicas novas...", spArtist.Name))
+		}
 	}
 
-	insCtx, insCancel := context.WithTimeout(context.Background(), 30*time.Second)
-	_, err = artistCollection.InsertOne(insCtx, dbArtist)
-	insCancel()
-	if err != nil {
-		q.addLog(jobID, "error", "Erro ao criar artista no banco: "+err.Error())
-		q.setStatus(jobID, "failed")
-		return
-	}
-	q.addLog(jobID, "progress", "Artista criado: "+spArtist.Name)
+	// Create new artist if not found
+	if artistOID.IsZero() {
+		artistOID = primitive.NewObjectID()
+		avatarPath := filepath.Join("uploads", "image", "avatar", artistOID.Hex()+".png")
 
-	// 5. Process each album and its tracks
+		artistColor = "#8b5cf6"
+		if len(spArtist.Images) > 0 {
+			q.addLog(jobID, "progress", "Baixando foto do artista...")
+			if err := downloadAndSaveImage(spArtist.Images[0].URL, avatarPath); err == nil {
+				if col, err := extractDominantLightColor(avatarPath); err == nil {
+					artistColor = col
+				}
+			}
+		}
+
+		q.addLog(jobID, "progress", "Buscando bio do artista...")
+		artistBio := fetchAudioDBBio(spArtist.Name)
+		if artistBio != "" {
+			q.addLog(jobID, "progress", "Bio encontrada ✓")
+		} else {
+			q.addLog(jobID, "progress", "Bio não encontrada, continuando...")
+		}
+
+		now := time.Now()
+		dbArtist := model.Artist{
+			ID:        artistOID,
+			Name:      spArtist.Name,
+			SpotifyID: spArtist.ID,
+			Genres:    spArtist.Genres,
+			AvatarUrl: "/image/avatar/" + artistOID.Hex(),
+			BannerUrl: "/image/banner/" + artistOID.Hex(),
+			Bio:       artistBio,
+			Color:     artistColor,
+			CreatedAt: now,
+			UpdatedAt: now,
+		}
+
+		insCtx, insCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_, err = artistCollection.InsertOne(insCtx, dbArtist)
+		insCancel()
+		if err != nil {
+			q.addLog(jobID, "error", "Erro ao criar artista no banco: "+err.Error())
+			q.setStatus(jobID, "failed")
+			return
+		}
+		q.addLog(jobID, "progress", "Artista criado: "+spArtist.Name)
+	} else if isExistingArtist {
+		// Update avatar for existing artist
+		if len(spArtist.Images) > 0 {
+			avatarPath := filepath.Join("uploads", "image", "avatar", artistOID.Hex()+".png")
+			if err := downloadAndSaveImage(spArtist.Images[0].URL, avatarPath); err == nil {
+				if col, err := extractDominantLightColor(avatarPath); err == nil {
+					artistColor = col
+				}
+			}
+			uCtx, uCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			artistCollection.UpdateOne(uCtx, bson.M{"_id": artistOID}, bson.M{"$set": bson.M{
+				"genres":    spArtist.Genres,
+				"color":     artistColor,
+				"updatedAt": time.Now(),
+			}})
+			uCancel()
+		}
+	}
+
+	// Persist artistId on the job so we can resume
+	q.setResult(jobID, 0, 0, 0, artistOID.Hex())
+
+	// 5. Load existing data for deduplication
+	existingAlbumNames := make(map[string]primitive.ObjectID)
+	existingMusicNames := make(map[string]bool)
+
+	deCtx, deCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if cursor, err := albumCollection.Find(deCtx, bson.M{"artistId": artistOID}); err == nil {
+		var existAlbums []model.Album
+		if cursor.All(deCtx, &existAlbums) == nil {
+			for _, a := range existAlbums {
+				existingAlbumNames[normalizeTrackName(a.Name)] = a.ID
+			}
+		}
+	}
+	if cursor, err := musicCollection.Find(deCtx, bson.M{"artistId": artistOID}); err == nil {
+		var existMusics []model.Music
+		if cursor.All(deCtx, &existMusics) == nil {
+			for _, m := range existMusics {
+				existingMusicNames[normalizeTrackName(m.Name)] = true
+			}
+		}
+	}
+	deCancel()
+
+	// 6. Process each album and its tracks
 	processedTracks := 0
 	totalAlbums := 0
 	totalMusics := 0
+	skippedTracks := 0
 	failedTracks := 0
 
 	for _, album := range albums {
@@ -373,36 +471,45 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 		albumColor := artistColor
 
 		if !isSingle {
-			albumOID = primitive.NewObjectID()
-			coverPath := filepath.Join("uploads", "image", "cover", albumOID.Hex()+".png")
+			normalizedAlbumName := normalizeTrackName(album.spotify.Name)
+			if existingID, ok := existingAlbumNames[normalizedAlbumName]; ok {
+				// Album already exists
+				albumOID = existingID
+			} else {
+				// Create new album
+				albumOID = primitive.NewObjectID()
+				coverPath := filepath.Join("uploads", "image", "cover", albumOID.Hex()+".png")
 
-			if len(album.spotify.Images) > 0 {
-				if err := downloadAndSaveImage(album.spotify.Images[0].URL, coverPath); err == nil {
-					if col, err := extractDominantLightColor(coverPath); err == nil {
-						albumColor = col
+				if len(album.spotify.Images) > 0 {
+					if err := downloadAndSaveImage(album.spotify.Images[0].URL, coverPath); err == nil {
+						if col, err := extractDominantLightColor(coverPath); err == nil {
+							albumColor = col
+						}
 					}
 				}
-			}
 
-			dbAlbum := model.Album{
-				ID:            albumOID,
-				Name:          album.spotify.Name,
-				ArtistID:      artistOID,
-				AlbumCoverUrl: "/image/cover/" + albumOID.Hex(),
-				Color:         albumColor,
-				CreatedAt:     now,
-				UpdatedAt:     now,
-			}
+				now := time.Now()
+				dbAlbum := model.Album{
+					ID:            albumOID,
+					Name:          album.spotify.Name,
+					ArtistID:      artistOID,
+					AlbumCoverUrl: "/image/cover/" + albumOID.Hex(),
+					Color:         albumColor,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+				}
 
-			albumCtx, albumCancel := context.WithTimeout(context.Background(), 10*time.Second)
-			_, err = albumCollection.InsertOne(albumCtx, dbAlbum)
-			albumCancel()
-			if err != nil {
-				q.addLog(jobID, "progress", fmt.Sprintf("⚠ Erro ao criar álbum '%s': %s", album.spotify.Name, err.Error()))
-				continue
+				albumCtx, albumCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				_, err = albumCollection.InsertOne(albumCtx, dbAlbum)
+				albumCancel()
+				if err != nil {
+					q.addLog(jobID, "progress", fmt.Sprintf("⚠ Erro ao criar álbum '%s': %s", album.spotify.Name, err.Error()))
+					continue
+				}
+				existingAlbumNames[normalizedAlbumName] = albumOID
+				totalAlbums++
+				q.addLog(jobID, "progress", fmt.Sprintf("📀 Álbum criado: %s", album.spotify.Name))
 			}
-			totalAlbums++
-			q.addLog(jobID, "progress", fmt.Sprintf("📀 Álbum criado: %s", album.spotify.Name))
 		}
 
 		for _, track := range album.tracks {
@@ -413,8 +520,18 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 				return
 			}
 
+			processedTracks++
+
+			// Skip tracks that already exist
+			if existingMusicNames[normalizeTrackName(track.Name)] {
+				skippedTracks++
+				q.addLog(jobID, "progress", fmt.Sprintf("⏭ [%d/%d] Já existe: %s", processedTracks, totalTracks, track.Name))
+				q.updateProgress(jobID, processedTracks, totalTracks)
+				continue
+			}
+
 			// Anti-bot: sleep between YouTube downloads to avoid rate limiting
-			if processedTracks > 0 {
+			if totalMusics > 0 || failedTracks > 0 {
 				select {
 				case <-ctx.Done():
 					q.addLog(jobID, "progress", "Importação cancelada.")
@@ -425,7 +542,6 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 				}
 			}
 
-			processedTracks++
 			q.addLog(jobID, "progress", fmt.Sprintf("🔽 [%d/%d] Baixando: %s - %s", processedTracks, totalTracks, spArtist.Name, track.Name))
 			q.updateProgress(jobID, processedTracks, totalTracks)
 
@@ -508,6 +624,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 				coverUrl = "/image/music_cover/" + musicOID.Hex()
 			}
 
+			now := time.Now()
 			dbMusic := model.Music{
 				ID:        musicOID,
 				Url:       "/stream/" + musicOID.Hex(),
@@ -539,6 +656,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 			}
 
 			totalMusics++
+			existingMusicNames[normalizeTrackName(track.Name)] = true
 
 			lrcPath := filepath.Join("uploads", "lyrics", musicOID.Hex()+".lrc")
 			if err := fetchAndSaveLRC(spArtist.Name, track.Name, track.DurationMs, lrcPath); err == nil {
@@ -549,8 +667,11 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 		}
 	}
 
-	// 6. Done
+	// 7. Done
 	summary := fmt.Sprintf("Importação concluída! Artista: %s | Álbuns: %d | Músicas: %d", spArtist.Name, totalAlbums, totalMusics)
+	if skippedTracks > 0 {
+		summary += fmt.Sprintf(" | Já existentes: %d", skippedTracks)
+	}
 	if failedTracks > 0 {
 		summary += fmt.Sprintf(" | Falhas: %d", failedTracks)
 	}

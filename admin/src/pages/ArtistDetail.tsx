@@ -43,6 +43,7 @@ export default function ArtistDetail() {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [musics, setMusics] = useState<Music[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
 
   // Album modal
   const [albumModal, setAlbumModal] = useState<'create' | 'edit' | null>(null);
@@ -79,6 +80,20 @@ export default function ArtistDetail() {
   };
 
   useEffect(() => { load(); }, [artistId]);
+
+  const handleSync = async () => {
+    if (!confirm('Sincronizar com Spotify? Isso vai verificar novas músicas/álbuns e atualizar a foto de perfil.')) return;
+    setSyncing(true);
+    try {
+      const res = await api.post(`/admin/artist/${artistId}/sync`);
+      show(res.data.message || 'Sincronização concluída', 'success');
+      load();
+    } catch (err: any) {
+      show(err.response?.data?.error || 'Erro ao sincronizar', 'error');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   // Singles = musics with no albumId or empty albumId
   const singles = musics.filter((m) => !m.albumId || m.albumId === '000000000000000000000000');
@@ -253,6 +268,30 @@ export default function ArtistDetail() {
             <h1 style={{ margin: 0 }}>{artist.name}</h1>
           </div>
         </div>
+        <button
+          className="btn btn-primary"
+          onClick={handleSync}
+          disabled={syncing}
+          title="Sincronizar com Spotify: atualiza foto, importa novos álbuns e músicas"
+        >
+          {syncing ? (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              Sincronizando...
+            </>
+          ) : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 4 23 10 17 10" />
+                <polyline points="1 20 1 14 7 14" />
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              </svg>
+              Sync Spotify
+            </>
+          )}
+        </button>
       </div>
 
       {/* Albums section */}

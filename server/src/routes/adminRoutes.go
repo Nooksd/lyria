@@ -81,5 +81,13 @@ func AdminRoutes(router *gin.Engine) {
 		adminProtected.GET("/cookies", controller.GetCookies())
 		adminProtected.POST("/cookies", controller.UploadCookies())
 		adminProtected.DELETE("/cookies", controller.DeleteCookies())
+
+		// Artist sync
+		adminProtected.POST("/artist/:artistId/sync", controller.SyncArtist())
+		adminProtected.POST("/sync/all", controller.SyncAllArtists())
+
+		// Cleanup orphan files
+		adminProtected.GET("/cleanup/scan", controller.ScanOrphanFiles())
+		adminProtected.DELETE("/cleanup/clean", controller.CleanOrphanFiles())
 	}
 }

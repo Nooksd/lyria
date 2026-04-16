@@ -9,6 +9,7 @@ import AlbumDetail from './pages/AlbumDetail';
 import Imports from './pages/Imports';
 import Requests from './pages/Requests';
 import Cookies from './pages/Cookies';
+import Cleanup from './pages/Cleanup';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -32,6 +33,7 @@ function AppRoutes() {
         <Route path="/imports" element={<Imports />} />
         <Route path="/requests" element={<Requests />} />
         <Route path="/cookies" element={<Cookies />} />
+        <Route path="/cleanup" element={<Cleanup />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

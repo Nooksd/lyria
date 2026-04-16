@@ -214,6 +214,7 @@ func ImportFromSpotify() gin.HandlerFunc {
 		dbArtist := model.Artist{
 			ID:        artistOID,
 			Name:      spArtist.Name,
+			SpotifyID: spArtist.ID,
 			Genres:    spArtist.Genres,
 			AvatarUrl: "/image/avatar/" + artistOID.Hex(),
 			BannerUrl: "/image/banner/" + artistOID.Hex(),
