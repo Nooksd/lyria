@@ -66,6 +66,14 @@ func CreateMusic() gin.HandlerFunc {
 			return
 		}
 
+		// Generate audio fingerprints for Shazam-like identification
+		go func(id primitive.ObjectID) {
+			audioPath := fmt.Sprintf("./uploads/music/%s.m4a", id.Hex())
+			if err := GenerateFingerprints(audioPath, id); err != nil {
+				fmt.Printf("[Fingerprint] Failed for music %s: %v\n", id.Hex(), err)
+			}
+		}(music.ID)
+
 		c.JSON(http.StatusOK, gin.H{"message": "Música criada com sucesso", "music": music})
 	}
 }

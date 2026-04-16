@@ -6,6 +6,7 @@ import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/explorer/domain/entities/search.dart';
 import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
 import 'package:lyria/app/modules/explorer/presentation/includes/category_include.dart';
+import 'package:lyria/app/modules/explorer/presentation/includes/identify_include.dart';
 import 'package:lyria/app/modules/explorer/presentation/includes/search_include.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
 
@@ -22,6 +23,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
   final TextEditingController searchController = TextEditingController();
   final FocusNode searchFocus = FocusNode();
   bool isSearchFocused = false;
+  bool isIdentifying = false;
   List<Search> searches = [];
   bool isHistory = false;
 
@@ -38,6 +40,9 @@ class _ExplorerPageState extends State<ExplorerPage> {
       }
       setState(() {
         isSearchFocused = searchFocus.hasFocus;
+        if (searchFocus.hasFocus) {
+          isIdentifying = false;
+        }
       });
     });
     searchController.addListener(() {
@@ -138,7 +143,28 @@ class _ExplorerPageState extends State<ExplorerPage> {
                               child: Icon(Icons.cloud_off,
                                   size: 18, color: Colors.grey),
                             )
-                          : null,
+                          : GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  isIdentifying = !isIdentifying;
+                                  if (isIdentifying) {
+                                    isSearchFocused = false;
+                                    searchFocus.unfocus();
+                                    searchController.clear();
+                                  }
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.only(right: 16),
+                                child: Icon(
+                                  Icons.graphic_eq,
+                                  size: 22,
+                                  color: isIdentifying
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ),
                       suffixIconConstraints:
                           const BoxConstraints(minWidth: 40),
                       enabledBorder: OutlineInputBorder(
@@ -159,19 +185,28 @@ class _ExplorerPageState extends State<ExplorerPage> {
                   ),
                 ),
                 SizedBox(height: 40),
-                Text(
-                  isSearchFocused
-                      ? isHistory
-                          ? 'Buscas recentes'
-                          : 'Resultados'
-                      : 'Gêneros',
-                  style: TextStyle(
-                    fontSize: 20,
+                if (!isIdentifying)
+                  Text(
+                    isSearchFocused
+                        ? isHistory
+                            ? 'Buscas recentes'
+                            : 'Resultados'
+                        : 'Gêneros',
+                    style: TextStyle(
+                      fontSize: 20,
+                    ),
                   ),
-                ),
-                SizedBox(height: 20),
+                if (!isIdentifying) SizedBox(height: 20),
                 Expanded(
-                  child: !isSearchFocused
+                  child: isIdentifying
+                      ? IdentifyInclude(
+                          onClose: () {
+                            setState(() {
+                              isIdentifying = false;
+                            });
+                          },
+                        )
+                      : !isSearchFocused
                       ? isOnline
                           ? CategoryInclude()
                           : Opacity(

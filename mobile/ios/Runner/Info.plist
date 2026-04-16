@@ -49,5 +49,7 @@
 	<array>
 		<string>audio</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Lyria precisa de acesso ao microfone para identificar músicas</string>
 </dict>
 </plist>

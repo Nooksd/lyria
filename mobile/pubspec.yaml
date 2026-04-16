@@ -55,6 +55,7 @@ dependencies:
   path_provider: ^2.1.5
   connectivity_plus: ^7.1.1
   intl: any
+  record: ^5.1.2
 
 dev_dependencies:
   flutter_test:

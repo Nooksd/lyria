@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -657,6 +658,13 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 			totalMusics++
 			existingMusicNames[normalizeTrackName(track.Name)] = true
+
+			// Generate audio fingerprints for Shazam-like identification
+			go func(path string, id primitive.ObjectID, name string) {
+				if err := GenerateFingerprints(path, id); err != nil {
+					log.Printf("[Fingerprint] Failed for '%s': %v", name, err)
+				}
+			}(audioPath, musicOID, track.Name)
 
 			lrcPath := filepath.Join("uploads", "lyrics", musicOID.Hex()+".lrc")
 			if err := fetchAndSaveLRC(spArtist.Name, track.Name, track.DurationMs, lrcPath); err == nil {

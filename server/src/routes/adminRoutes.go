@@ -89,5 +89,9 @@ func AdminRoutes(router *gin.Engine) {
 		// Cleanup orphan files
 		adminProtected.GET("/cleanup/scan", controller.ScanOrphanFiles())
 		adminProtected.DELETE("/cleanup/clean", controller.CleanOrphanFiles())
+
+		// Fingerprint generation
+		adminProtected.POST("/fingerprint/generate-all", controller.GenerateAllFingerprints())
+		adminProtected.GET("/fingerprint/status", controller.GetFingerprintStatus())
 	}
 }

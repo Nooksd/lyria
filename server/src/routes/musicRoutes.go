@@ -31,4 +31,7 @@ func MusicRoutes(router *gin.RouterGroup) {
 	}
 
 	router.GET("/search", controller.GeneralSearch())
+
+	// Shazam-like music identification
+	router.POST("/music/identify", controller.IdentifyMusic())
 }
