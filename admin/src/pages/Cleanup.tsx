@@ -51,7 +51,7 @@ export default function Cleanup() {
       if (res.data.totalFiles === 0) {
         show('Nenhum arquivo órfão encontrado', 'success');
       } else {
-        show(`${res.data.totalFiles} arquivos órfãos encontrados (${formatBytes(res.data.totalSize)})`, 'info');
+        show(`${res.data.totalFiles} arquivos órfãos encontrados (${formatBytes(res.data.totalSize)})`);
       }
     } catch {
       show('Erro ao escanear arquivos', 'error');
