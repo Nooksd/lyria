@@ -8,6 +8,7 @@ import ArtistDetail from './pages/ArtistDetail';
 import AlbumDetail from './pages/AlbumDetail';
 import Imports from './pages/Imports';
 import Requests from './pages/Requests';
+import Cookies from './pages/Cookies';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -30,6 +31,7 @@ function AppRoutes() {
         <Route path="/artists/:artistId/albums/:albumId" element={<AlbumDetail />} />
         <Route path="/imports" element={<Imports />} />
         <Route path="/requests" element={<Requests />} />
+        <Route path="/cookies" element={<Cookies />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

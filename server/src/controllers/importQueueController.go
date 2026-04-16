@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -453,16 +452,19 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 			}
 			ytArgs = append(ytArgs, searchQuery)
 
-			cmd := exec.Command("yt-dlp", ytArgs...)
-			var cmdStderr bytes.Buffer
-			cmd.Stderr = &cmdStderr
-			if err := cmd.Run(); err != nil {
-				failedTracks++
-				errMsg := cmdStderr.String()
-				if len(errMsg) > 500 {
-					errMsg = errMsg[len(errMsg)-500:]
+			// Smart retry: bot detection / cookie errors pause and retry with backoff
+			result := runYtdlpWithRetry(ctx, ytArgs, defaultRetryConfig, func(msg string) {
+				q.addLog(jobID, "progress", msg)
+			})
+			if !result.Success {
+				if result.Stderr == "cancelled" {
+					q.addLog(jobID, "progress", "Importação cancelada.")
+					q.setResult(jobID, totalAlbums, totalMusics, failedTracks, artistOID.Hex())
+					q.setStatus(jobID, "cancelled")
+					return
 				}
-				reason := fmt.Sprintf("%s | %s", err.Error(), errMsg)
+				failedTracks++
+				reason := result.Stderr
 				q.addLog(jobID, "progress", fmt.Sprintf("⚠ Falha ao baixar '%s': %s", track.Name, reason))
 				q.addFailedItem(jobID, track.Name, reason)
 				continue

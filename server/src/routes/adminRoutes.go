@@ -76,5 +76,10 @@ func AdminRoutes(router *gin.Engine) {
 		adminProtected.GET("/artist-requests", controller.ListArtistRequests())
 		adminProtected.POST("/artist-requests/:id/approve", controller.ApproveArtistRequest())
 		adminProtected.POST("/artist-requests/:id/reject", controller.RejectArtistRequest())
+
+		// Cookies management
+		adminProtected.GET("/cookies", controller.GetCookies())
+		adminProtected.POST("/cookies", controller.UploadCookies())
+		adminProtected.DELETE("/cookies", controller.DeleteCookies())
 	}
 }

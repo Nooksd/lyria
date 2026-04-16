@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -340,17 +339,18 @@ func ImportFromSpotify() gin.HandlerFunc {
 				}
 				ytArgs = append(ytArgs, searchQuery)
 
-				cmd := exec.Command("yt-dlp", ytArgs...)
-				var cmdStderr bytes.Buffer
-				cmd.Stderr = &cmdStderr
-				if err := cmd.Run(); err != nil {
-					failedTracks++
-					errMsg := cmdStderr.String()
-					if len(errMsg) > 500 {
-						errMsg = errMsg[len(errMsg)-500:]
+				// Smart retry: bot detection / cookie errors pause and retry with backoff
+				reqCtx := c.Request.Context()
+				result := runYtdlpWithRetry(reqCtx, ytArgs, defaultRetryConfig, func(msg string) {
+					sse.send("progress", map[string]string{"message": msg})
+				})
+				if !result.Success {
+					if result.Stderr == "cancelled" {
+						return
 					}
+					failedTracks++
 					sse.send("progress", map[string]string{
-						"message": fmt.Sprintf("⚠ Falha ao baixar '%s': %s | %s", track.Name, err.Error(), errMsg),
+						"message": fmt.Sprintf("⚠ Falha ao baixar '%s': %s", track.Name, result.Stderr),
 					})
 					continue
 				}
