@@ -119,6 +119,8 @@ class _QueueTileState extends State<QueueTile> {
                                       width: 170,
                                       height: 170,
                                       fit: BoxFit.cover,
+                                      fadeInDuration: Duration.zero,
+                                      fadeOutDuration: Duration.zero,
                                     ),
                                   ),
                                 ),

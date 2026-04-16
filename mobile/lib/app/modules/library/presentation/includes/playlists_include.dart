@@ -159,6 +159,8 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                                                 '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
                                             cacheKey: playlist.playlistCoverUrl,
                                             fit: BoxFit.cover,
+                                            fadeInDuration: Duration.zero,
+                                            fadeOutDuration: Duration.zero,
                                             placeholder: (_, __) => Container(
                                               color: Theme.of(context)
                                                   .colorScheme

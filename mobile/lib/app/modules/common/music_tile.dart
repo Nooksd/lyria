@@ -42,6 +42,8 @@ class MusicTile extends StatelessWidget {
                 ? CachedNetworkImage(
                     imageUrl: image,
                     fit: BoxFit.cover,
+                    fadeInDuration: Duration.zero,
+                    fadeOutDuration: Duration.zero,
                     placeholder: (_, __) => Container(
                       color: Theme.of(context).colorScheme.primary,
                       child: Icon(

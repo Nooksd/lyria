@@ -68,5 +68,13 @@ func AdminRoutes(router *gin.Engine) {
 		// Auto import
 		adminProtected.GET("/autoimport/status", controller.GetAutoImportStatus())
 		adminProtected.POST("/autoimport/toggle", controller.ToggleAutoImport())
+
+		// Stats
+		adminProtected.GET("/stats", controller.GetDashboardStats())
+
+		// Artist requests
+		adminProtected.GET("/artist-requests", controller.ListArtistRequests())
+		adminProtected.POST("/artist-requests/:id/approve", controller.ApproveArtistRequest())
+		adminProtected.POST("/artist-requests/:id/reject", controller.RejectArtistRequest())
 	}
 }

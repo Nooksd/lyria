@@ -133,6 +133,8 @@ class MusicJamPage extends StatelessWidget {
                                           ? CachedNetworkImage(
                                               imageUrl: avatarUrl,
                                               fit: BoxFit.cover,
+                                              fadeInDuration: Duration.zero,
+                                              fadeOutDuration: Duration.zero,
                                               placeholder: (_, __) =>
                                                   const Icon(
                                                     Icons.person,

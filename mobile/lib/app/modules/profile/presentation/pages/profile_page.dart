@@ -197,6 +197,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                       imageUrl: avatarUrl,
                                       cacheKey: avatarCacheKey,
                                       fit: BoxFit.cover,
+                                      fadeInDuration: Duration.zero,
+                                      fadeOutDuration: Duration.zero,
                                       placeholder: (_, __) =>
                                           const Icon(Icons.person,
                                               size: 50,
@@ -366,6 +368,8 @@ class _ProfilePageState extends State<ProfilePage> {
                                                     .split('?')
                                                     .first,
                                                 fit: BoxFit.cover,
+                                                fadeInDuration: Duration.zero,
+                                                fadeOutDuration: Duration.zero,
                                                 placeholder: (_, __) =>
                                                     Container(
                                                   color: primary.withValues(

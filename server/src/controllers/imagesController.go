@@ -200,7 +200,20 @@ func getImage(c *gin.Context, subDir string) {
 		return
 	}
 
-	c.Header("Cache-Control", "public, max-age=60, must-revalidate")
+	c.Header("Cache-Control", cacheControlForSubDir(subDir))
 	c.Header("ETag", etag)
 	c.File(filePath)
+}
+
+func cacheControlForSubDir(subDir string) string {
+	switch subDir {
+	case "cover", "music_cover":
+		return "public, max-age=31536000, immutable"
+	case "avatar", "banner":
+		return "public, max-age=604800"
+	case "playlist":
+		return "public, max-age=86400"
+	default:
+		return "public, max-age=3600"
+	}
 }

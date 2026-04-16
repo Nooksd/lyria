@@ -95,6 +95,8 @@ class _MusicIndicatorState extends State<MusicIndicator> {
                             child: CachedNetworkImage(
                               imageUrl: currentMusic.coverUrl,
                               fit: BoxFit.cover,
+                              fadeInDuration: Duration.zero,
+                              fadeOutDuration: Duration.zero,
                             ),
                           ),
                         ),

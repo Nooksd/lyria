@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lyria/app/core/services/download/download_service.dart';
+import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/modules/music/domain/entities/lyrics.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
@@ -12,6 +13,7 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer _audioPlayer = AudioPlayer();
   final MyLocalStorage storage;
   final DownloadService downloadService;
+  final MyHttpClient httpClient;
 
   final ConcatenatingAudioSource _playlist =
       ConcatenatingAudioSource(children: []);
@@ -28,13 +30,21 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   Stream<void> get notificationDeleted => _notificationDeletedController.stream;
   int get currentIndex => _audioPlayer.currentIndex ?? 0;
 
-  MusicService({required this.storage, required this.downloadService}) {
+  String? _lastTrackedMusicId;
+
+  MusicService({required this.storage, required this.downloadService, required this.httpClient}) {
     _init();
   }
 
   Future<void> _init() async {
     await _audioPlayer.setAudioSource(_playlist);
     _setupPlaybackListeners();
+  }
+
+  void _trackPlay(String musicId) {
+    if (musicId.isEmpty || musicId == _lastTrackedMusicId) return;
+    _lastTrackedMusicId = musicId;
+    httpClient.post('/play/$musicId').catchError((_) => null);
   }
 
   void _setupPlaybackListeners() {
@@ -50,6 +60,7 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (currentIdx < newQueue.length) {
         final currentItem = newQueue[currentIdx];
         mediaItem.add(currentItem.copyWith(duration: _audioPlayer.duration));
+        _trackPlay(currentItem.id);
       }
     });
 

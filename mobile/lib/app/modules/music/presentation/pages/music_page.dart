@@ -231,6 +231,8 @@ class _MusicPageState extends State<MusicPage> {
                                   child: CachedNetworkImage(
                                     imageUrl: music.coverUrl,
                                     fit: BoxFit.cover,
+                                    fadeInDuration: Duration.zero,
+                                    fadeOutDuration: Duration.zero,
                                     placeholder: (_, __) => Container(
                                       color: Theme.of(context).colorScheme.primary,
                                     ),

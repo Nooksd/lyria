@@ -130,6 +130,8 @@ class _ArtistPageState extends State<ArtistPage> {
                       ? CachedNetworkImage(
                           imageUrl: bannerUrl,
                           fit: BoxFit.cover,
+                          fadeInDuration: Duration.zero,
+                          fadeOutDuration: Duration.zero,
                           placeholder: (_, __) => const SizedBox.shrink(),
                           errorWidget: (_, __, ___) =>
                               const SizedBox.shrink(),
@@ -163,6 +165,8 @@ class _ArtistPageState extends State<ArtistPage> {
                             ? CachedNetworkImage(
                                 imageUrl: avatarUrl,
                                 fit: BoxFit.cover,
+                                fadeInDuration: Duration.zero,
+                                fadeOutDuration: Duration.zero,
                                 placeholder: (_, __) => const Icon(
                                     Icons.person,
                                     size: 50,
@@ -342,6 +346,8 @@ class _ArtistPageState extends State<ArtistPage> {
                                     ? CachedNetworkImage(
                                         imageUrl: coverUrl,
                                         fit: BoxFit.cover,
+                                        fadeInDuration: Duration.zero,
+                                        fadeOutDuration: Duration.zero,
                                         placeholder: (_, __) =>
                                             const SizedBox.shrink(),
                                         errorWidget:

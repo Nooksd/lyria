@@ -34,6 +34,8 @@ class PlayingMusicTile extends StatelessWidget {
                   child: CachedNetworkImage(
                     imageUrl: state.currentMusic.coverUrl,
                     fit: BoxFit.cover,
+                    fadeInDuration: Duration.zero,
+                    fadeOutDuration: Duration.zero,
                   ),
                 ),
               ),

@@ -8,4 +8,5 @@ import (
 
 func StreamRoutes(router *gin.RouterGroup) {
 	router.GET("/stream/:musicId", controller.StreamMusic())
+	router.POST("/play/:musicId", controller.RecordPlay())
 }

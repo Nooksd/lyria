@@ -776,6 +776,40 @@ func StreamImportJobLogs() gin.HandlerFunc {
 	}
 }
 
+// createImportJobsFromURLs creates import jobs for a list of Spotify URLs (used internally)
+func createImportJobsFromURLs(urls []string) []model.ImportJob {
+	var created []model.ImportJob
+	now := time.Now()
+
+	for _, u := range urls {
+		u = trimURL(u)
+		if u == "" {
+			continue
+		}
+		job := model.ImportJob{
+			ID:          primitive.NewObjectID(),
+			SpotifyUrl:  u,
+			Status:      "queued",
+			Logs:        []model.ImportLog{},
+			FailedItems: []model.ImportFailedItem{},
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_, err := importJobCollection.InsertOne(ctx, job)
+		cancel()
+		if err != nil {
+			continue
+		}
+
+		importQueue.Enqueue(job.ID)
+		created = append(created, job)
+	}
+
+	return created
+}
+
 func trimURL(s string) string {
 	// Simple trim
 	result := ""

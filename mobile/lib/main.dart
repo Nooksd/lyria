@@ -40,6 +40,7 @@ Future<void> main() async {
     builder: () => MusicService(
       storage: getIt<MyLocalStorage>(),
       downloadService: getIt<DownloadService>(),
+      httpClient: getIt<MyHttpClient>(),
     ),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'com.risadev.lyria.channel.audio',

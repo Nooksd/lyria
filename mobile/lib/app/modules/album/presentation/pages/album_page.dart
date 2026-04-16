@@ -157,6 +157,8 @@ class _AlbumPageState extends State<AlbumPage> {
                                           ? CachedNetworkImage(
                                               imageUrl: coverUrl,
                                               fit: BoxFit.cover,
+                                              fadeInDuration: Duration.zero,
+                                              fadeOutDuration: Duration.zero,
                                               placeholder: (_, __) =>
                                                   const SizedBox.shrink(),
                                               errorWidget:

@@ -116,18 +116,50 @@ func GetArtist() gin.HandlerFunc {
 
 		var musics []model.Music
 
-		musicCursor, err := musicCollection.Find(
-			ctx,
-			bson.M{"artistId": objectID},
-			options.Find().SetSort(bson.M{"createdAt": -1}).SetLimit(5),
-		)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
-			return
-		}
-		if err := musicCursor.All(ctx, &musics); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar músicas"})
-			return
+		// Try to get top 5 by play count first
+		topMusicIDs := GetTopMusicsByArtist(ctx, objectID, 5)
+
+		if len(topMusicIDs) > 0 {
+			// Fetch musics in play-count order
+			for _, mid := range topMusicIDs {
+				var m model.Music
+				err := musicCollection.FindOne(ctx, bson.M{"_id": mid}).Decode(&m)
+				if err == nil {
+					musics = append(musics, m)
+				}
+			}
+			// If we got fewer than 5 from plays, fill with newest that aren't already included
+			if len(musics) < 5 {
+				excludeIDs := make([]primitive.ObjectID, len(musics))
+				for i, m := range musics {
+					excludeIDs[i] = m.ID
+				}
+				fillCursor, err := musicCollection.Find(
+					ctx,
+					bson.M{"artistId": objectID, "_id": bson.M{"$nin": excludeIDs}},
+					options.Find().SetSort(bson.M{"createdAt": -1}).SetLimit(int64(5-len(musics))),
+				)
+				if err == nil {
+					var fillMusics []model.Music
+					fillCursor.All(ctx, &fillMusics)
+					musics = append(musics, fillMusics...)
+				}
+			}
+		} else {
+			// No play data yet — fall back to newest
+			musicCursor, err := musicCollection.Find(
+				ctx,
+				bson.M{"artistId": objectID},
+				options.Find().SetSort(bson.M{"createdAt": -1}).SetLimit(5),
+			)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar músicas"})
+				return
+			}
+			if err := musicCursor.All(ctx, &musics); err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar músicas"})
+				return
+			}
 		}
 
 		// Helper to enrich a music slice

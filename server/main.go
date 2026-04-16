@@ -36,6 +36,7 @@ func main() {
 
 	controller.StartImportWorker()
 	controller.InitAutoImport()
+	controller.StartStatsCollector()
 
 	routes.AuthRoutes(router)
 	routes.ImageRoutes(router)

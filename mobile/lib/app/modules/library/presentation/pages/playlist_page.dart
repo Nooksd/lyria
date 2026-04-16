@@ -111,6 +111,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
                                     '${_currentPlaylist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
                                 cacheKey: _currentPlaylist.playlistCoverUrl,
                                 fit: BoxFit.cover,
+                                fadeInDuration: Duration.zero,
+                                fadeOutDuration: Duration.zero,
                                 placeholder: (_, __) => Container(
                                   color: Theme.of(context).colorScheme.primary,
                                 ),

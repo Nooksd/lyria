@@ -53,6 +53,8 @@ class LibraryPage extends StatelessWidget {
                             ? CachedNetworkImage(
                                 imageUrl: user.avatarUrl,
                                 fit: BoxFit.cover,
+                                fadeInDuration: Duration.zero,
+                                fadeOutDuration: Duration.zero,
                                 placeholder: (_, __) => Container(
                                   color: Theme.of(context).colorScheme.primary,
                                   child: const Icon(Icons.person, color: Colors.white54, size: 24),
