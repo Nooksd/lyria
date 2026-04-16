@@ -1,4 +1,4 @@
-name: Deploy Lyria
+name: Deploy Lyria!
 
 on:
   push:
