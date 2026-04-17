@@ -28,15 +28,15 @@ import (
 // ──────────────────────────────────────────────
 
 const (
-	fpSampleRate = 8000  // Hz – phone-quality, sufficient for fingerprinting
-	fftSize      = 1024  // samples per window → 128 ms at 8 kHz
-	hopSize      = 256   // 75 % overlap → 32 ms advance per frame
-	maxFreqBin   = 512   // Nyquist bin index for 1024-point real FFT
-	peaksPerBand = 3     // max peaks extracted per frequency band per frame
-	fanOut       = 15    // target points paired with each anchor
-	targetStart  = 2     // frames ahead — start of target zone
-	targetEnd    = 50    // frames ahead — end of target zone
-	matchThresh  = 8     // minimum aligned hashes to declare a match
+	fpSampleRate = 8000 // Hz – phone-quality, sufficient for fingerprinting
+	fftSize      = 1024 // samples per window → 128 ms at 8 kHz
+	hopSize      = 256  // 75 % overlap → 32 ms advance per frame
+	maxFreqBin   = 512  // Nyquist bin index for 1024-point real FFT
+	peaksPerBand = 3    // max peaks extracted per frequency band per frame
+	fanOut       = 15   // target points paired with each anchor
+	targetStart  = 2    // frames ahead — start of target zone
+	targetEnd    = 50   // frames ahead — end of target zone
+	matchThresh  = 8    // minimum aligned hashes to declare a match
 )
 
 // Frequency bands for peak detection (bin ranges at 8 kHz / 1024-pt FFT ≈ 7.8 Hz/bin)
@@ -220,11 +220,10 @@ func hashPeaks(peaks []peak) []struct {
 	hash   uint32
 	offset uint32
 } {
-	type entry struct {
+	var hashes []struct {
 		hash   uint32
-		offset uint32 // anchor frame
+		offset uint32
 	}
-	var hashes []entry
 
 	for i := 0; i < len(peaks); i++ {
 		anchor := peaks[i]
@@ -239,7 +238,10 @@ func hashPeaks(peaks []peak) []struct {
 				break
 			}
 			h := uint32(anchor.bin&0x3FF)<<20 | uint32(target.bin&0x3FF)<<10 | uint32(dt&0x3FF)
-			hashes = append(hashes, entry{hash: h, offset: uint32(anchor.frame)})
+			hashes = append(hashes, struct {
+				hash   uint32
+				offset uint32
+			}{hash: h, offset: uint32(anchor.frame)})
 			paired++
 		}
 	}
@@ -549,9 +551,9 @@ func loadMusicWithDetails(ctx context.Context, musicID primitive.ObjectID) (bson
 var fingerprintAllRunning bool
 var fingerprintAllMu sync.Mutex
 var fingerprintAllProgress struct {
-	Total     int `json:"total"`
-	Processed int `json:"processed"`
-	Failed    int `json:"failed"`
+	Total     int  `json:"total"`
+	Processed int  `json:"processed"`
+	Failed    int  `json:"failed"`
 	Running   bool `json:"running"`
 }
 
@@ -590,9 +592,9 @@ func GenerateAllFingerprints() gin.HandlerFunc {
 
 			fingerprintAllMu.Lock()
 			fingerprintAllProgress = struct {
-				Total     int `json:"total"`
-				Processed int `json:"processed"`
-				Failed    int `json:"failed"`
+				Total     int  `json:"total"`
+				Processed int  `json:"processed"`
+				Failed    int  `json:"failed"`
 				Running   bool `json:"running"`
 			}{Total: len(musics), Processed: 0, Failed: 0, Running: true}
 			fingerprintAllMu.Unlock()
