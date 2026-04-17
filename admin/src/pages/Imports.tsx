@@ -33,6 +33,7 @@ export default function Imports() {
   const [autoImportEnabled, setAutoImportEnabled] = useState(false);
   const [autoImportGenre, setAutoImportGenre] = useState('');
   const [autoImportLoading, setAutoImportLoading] = useState(false);
+  const [fingerprintLoading, setFingerprintLoading] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<AbortController | null>(null);
   const { toasts, show } = useToast();
@@ -78,6 +79,35 @@ export default function Imports() {
       show('Erro ao alterar autoimport', 'error');
     } finally {
       setAutoImportLoading(false);
+    }
+  };
+
+  const generateAllFingerprints = async () => {
+    if (fingerprintLoading) {
+      return;
+    }
+
+    const confirmed = confirm(
+      'Isso vai recriar as fingerprints de todas as músicas cadastradas. Deseja continuar?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setFingerprintLoading(true);
+    try {
+      const res = await api.post('/admin/fingerprint/generate-all');
+      const total = res.data?.total;
+      show(
+        typeof total === 'number'
+          ? `Geração iniciada para ${total} músicas`
+          : 'Geração de fingerprints iniciada'
+      );
+    } catch (err: any) {
+      show(err.response?.data?.error || 'Erro ao iniciar geração de fingerprints', 'error');
+    } finally {
+      setFingerprintLoading(false);
     }
   };
 
@@ -234,6 +264,14 @@ export default function Imports() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1>Importações</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            className="btn btn-primary"
+            onClick={generateAllFingerprints}
+            disabled={fingerprintLoading}
+            style={{ opacity: fingerprintLoading ? 0.7 : 1 }}
+          >
+            {fingerprintLoading ? 'Gerando fingerprints...' : 'Gerar fingerprints'}
+          </button>
           {autoImportEnabled && autoImportGenre && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               Gênero atual: <strong style={{ color: 'var(--accent)' }}>{autoImportGenre}</strong>
