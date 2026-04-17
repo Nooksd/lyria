@@ -109,8 +109,8 @@ class _IdentifyIncludeState extends State<IdentifyInclude>
         _recordSeconds++;
       });
 
-      // Auto-stop after 7 seconds
-      if (_recordSeconds >= 7) {
+      // Auto-stop after 10 seconds
+      if (_recordSeconds >= 10) {
         timer.cancel();
         _stopAndIdentify(filePath);
       }
@@ -202,129 +202,134 @@ class _IdentifyIncludeState extends State<IdentifyInclude>
     final primaryColor = Theme.of(context).colorScheme.primary;
     final bgColor = Theme.of(context).colorScheme.surface;
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Spacer(flex: 1),
-        Text(
-          'Identificador de Música',
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-            color: primaryColor,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          _state == IdentifyState.idle
-              ? 'Toque no botão para identificar'
-              : _state == IdentifyState.recording
-                  ? 'Ouvindo... ${_recordSeconds}s'
-                  : _message,
-          style: TextStyle(
-            fontSize: 14,
-            color: Colors.grey[400],
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const Spacer(flex: 2),
-        // Mic button
-        GestureDetector(
-          onTap: () {
-            if (_state == IdentifyState.idle ||
-                _state == IdentifyState.notFound ||
-                _state == IdentifyState.error) {
-              _startIdentification();
-            } else if (_state == IdentifyState.recording &&
-                _currentFilePath != null) {
-              _stopAndIdentify(_currentFilePath!);
-            }
-          },
-          child: AnimatedBuilder(
-            animation: _pulseAnimation,
-            builder: (context, child) {
-              final scale = _state == IdentifyState.recording
-                  ? _pulseAnimation.value
-                  : 1.0;
-              return Transform.scale(
-                scale: scale,
-                child: child,
-              );
-            },
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _state == IdentifyState.recording
-                    ? primaryColor
-                    : _state == IdentifyState.identifying
-                        ? primaryColor.withValues(alpha: 0.5)
-                        : primaryColor.withValues(alpha: 0.15),
-                border: Border.all(
-                  color: primaryColor,
-                  width: 3,
-                ),
-                boxShadow: _state == IdentifyState.recording
-                    ? [
-                        BoxShadow(
-                          color: primaryColor.withValues(alpha: 0.4),
-                          blurRadius: 30,
-                          spreadRadius: 10,
-                        )
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: _state == IdentifyState.identifying
-                    ? SizedBox(
-                        width: 40,
-                        height: 40,
-                        child: CircularProgressIndicator(
-                          color: bgColor,
-                          strokeWidth: 3,
-                        ),
-                      )
-                    : _state == IdentifyState.found
-                        ? Icon(Icons.check, size: 50, color: primaryColor)
-                        : Icon(
-                            Icons.mic,
-                            size: 50,
-                            color: _state == IdentifyState.recording
-                                ? bgColor
-                                : primaryColor,
-                          ),
+    return Center(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Identificador de Música',
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.w600,
+                color: primaryColor,
               ),
             ),
-          ),
-        ),
-        const Spacer(flex: 2),
-        if (_state == IdentifyState.found)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: Text(
-              _message,
+            const SizedBox(height: 8),
+            Text(
+              _state == IdentifyState.idle
+                  ? 'Toque no botão para identificar'
+                  : _state == IdentifyState.recording
+                      ? 'Ouvindo... ${_recordSeconds}s'
+                      : _message,
               style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: primaryColor,
+                fontSize: 14,
+                color: Colors.grey[400],
               ),
               textAlign: TextAlign.center,
             ),
-          ),
-        if (_state == IdentifyState.notFound || _state == IdentifyState.error)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 20),
-            child: TextButton(
-              onPressed: _startIdentification,
-              child: Text(
-                'Tentar novamente',
-                style: TextStyle(color: primaryColor),
+            const SizedBox(height: 48),
+            // Mic button
+            GestureDetector(
+              onTap: () {
+                if (_state == IdentifyState.idle ||
+                    _state == IdentifyState.notFound ||
+                    _state == IdentifyState.error) {
+                  _startIdentification();
+                } else if (_state == IdentifyState.recording &&
+                    _currentFilePath != null) {
+                  _stopAndIdentify(_currentFilePath!);
+                }
+              },
+              child: AnimatedBuilder(
+                animation: _pulseAnimation,
+                builder: (context, child) {
+                  final scale = _state == IdentifyState.recording
+                      ? _pulseAnimation.value
+                      : 1.0;
+                  return Transform.scale(
+                    scale: scale,
+                    child: child,
+                  );
+                },
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _state == IdentifyState.recording
+                        ? primaryColor
+                        : _state == IdentifyState.identifying
+                            ? primaryColor.withValues(alpha: 0.5)
+                            : primaryColor.withValues(alpha: 0.15),
+                    border: Border.all(
+                      color: primaryColor,
+                      width: 3,
+                    ),
+                    boxShadow: _state == IdentifyState.recording
+                        ? [
+                            BoxShadow(
+                              color: primaryColor.withValues(alpha: 0.4),
+                              blurRadius: 30,
+                              spreadRadius: 10,
+                            )
+                          ]
+                        : null,
+                  ),
+                  child: Center(
+                    child: _state == IdentifyState.identifying
+                        ? SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: CircularProgressIndicator(
+                              color: bgColor,
+                              strokeWidth: 3,
+                            ),
+                          )
+                        : _state == IdentifyState.found
+                            ? Icon(Icons.check, size: 50, color: primaryColor)
+                            : Icon(
+                                Icons.mic,
+                                size: 50,
+                                color: _state == IdentifyState.recording
+                                    ? bgColor
+                                    : primaryColor,
+                              ),
+                  ),
+                ),
               ),
             ),
-          ),
-        const Spacer(flex: 1),
-      ],
+            const SizedBox(height: 48),
+            if (_state == IdentifyState.found)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: Text(
+                  _message,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: primaryColor,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            if (_state == IdentifyState.notFound ||
+                _state == IdentifyState.error)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: TextButton(
+                  onPressed: _startIdentification,
+                  child: Text(
+                    'Tentar novamente',
+                    style: TextStyle(color: primaryColor),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
