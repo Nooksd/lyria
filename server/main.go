@@ -29,6 +29,11 @@ func main() {
 
 	router.GET("/favicon.ico", func(c *gin.Context) { c.File("favicon.ico") })
 
+	// Public health check (used by Docker healthcheck)
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
+
 	router.Use(gin.Logger())
 	router.Use(middlewares.CORS())
 

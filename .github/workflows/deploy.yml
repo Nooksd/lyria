@@ -156,6 +156,104 @@ jobs:
             echo ".env written"
           ENVSETUP
 
+      - name: Setup MongoDB local and migrate data
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'MONGODB'
+            set -e
+
+            ATLAS_URI="mongodb+srv://pc-trabalho:rYNWsv3wsZWLaYNg@lyria.vrdoy.mongodb.net/Lyria?retryWrites=true&w=majority&appName=Lyria"
+            LOCAL_URI="mongodb://admin:admin123@127.0.0.1:27017/Lyria?authSource=admin"
+
+            # ── 1. Install MongoDB if not present ──────────────────────────
+            if command -v mongod &>/dev/null; then
+              echo "✓ MongoDB already installed: $(mongod --version | head -1)"
+              sudo -n systemctl start mongod 2>/dev/null || true
+            else
+              echo "MongoDB not found. Installing MongoDB 7.0..."
+              UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "jammy")
+
+              curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
+                sudo -n gpg --batch --yes -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+
+              echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu ${UBUNTU_CODENAME}/mongodb-org/7.0 multiverse" | \
+                sudo -n tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+
+              sudo -n apt-get update -qq
+              sudo -n apt-get install -y mongodb-org
+              sudo -n systemctl enable mongod
+              sudo -n systemctl start mongod
+
+              echo "Waiting for MongoDB to start..."
+              sleep 5
+
+              # Create admin user (no-auth mode on first boot)
+              mongosh 127.0.0.1:27017 --eval \
+                "use admin; db.createUser({user:'admin',pwd:'admin123',roles:[{role:'root',db:'admin'}]});"
+
+              # Enable authentication
+              if ! sudo -n grep -q "authorization: enabled" /etc/mongod.conf; then
+                printf '\nsecurity:\n  authorization: enabled\n' | sudo -n tee -a /etc/mongod.conf
+              fi
+              sudo -n systemctl restart mongod
+              sleep 3
+
+              echo "✓ MongoDB 7.0 installed and auth configured"
+            fi
+
+            # ── 2. Verify connection ────────────────────────────────────────
+            echo "Verifying local MongoDB connection..."
+            CONNECTED=false
+            for i in 1 2 3 4 5; do
+              if mongosh "$LOCAL_URI" --eval "db.adminCommand('ping')" --quiet >/dev/null 2>&1; then
+                CONNECTED=true
+                break
+              fi
+              echo "  Attempt $i/5, retrying in 3s..."
+              sleep 3
+            done
+            if [ "$CONNECTED" = "false" ]; then
+              echo "✗ Cannot connect to local MongoDB!"
+              sudo -n journalctl -u mongod --no-pager -n 30
+              exit 1
+            fi
+            echo "✓ Local MongoDB connection OK"
+
+            # ── 3. Override .env to use local MongoDB ───────────────────────
+            sed -i "s|MONGODB_URL=.*|MONGODB_URL=${LOCAL_URI}|" /opt/lyria/server/.env
+            echo "✓ .env → MONGODB_URL set to local"
+
+            # ── 4. Migrate from Atlas only if local DB is empty ─────────────
+            COLLECTIONS=$(mongosh "$LOCAL_URI" --eval "db.getCollectionNames().length" --quiet 2>/dev/null | tail -1)
+
+            if [ "$COLLECTIONS" = "0" ] || [ -z "$COLLECTIONS" ]; then
+              echo "DB empty. Migrating from Atlas..."
+              DUMP_DIR="/tmp/atlas_dump_$(date +%s)"
+              mkdir -p "$DUMP_DIR"
+
+              if mongodump --uri="$ATLAS_URI" --db=Lyria --out="$DUMP_DIR" --quiet; then
+                mongorestore --uri="$LOCAL_URI" --db=Lyria "$DUMP_DIR/Lyria" --drop --quiet
+                rm -rf "$DUMP_DIR"
+                echo "✓ Atlas → local migration complete"
+              else
+                rm -rf "$DUMP_DIR"
+                echo "⚠ Atlas dump failed. Server will start with empty DB."
+                echo "  Make sure the Atlas cluster is still accessible."
+              fi
+            else
+              echo "✓ DB already has $COLLECTIONS collections. Skipping migration."
+            fi
+
+            # ── 5. Report ───────────────────────────────────────────────────
+            echo ""
+            echo "═══════ MongoDB Status ═══════"
+            mongosh "$LOCAL_URI" --quiet --eval \
+              "db.getCollectionNames().forEach(c => print('  ' + c.padEnd(22) + db.getCollection(c).countDocuments() + ' docs'));" 2>/dev/null
+            TOTAL=$(mongosh "$LOCAL_URI" --eval "db.getCollectionNames().length" --quiet 2>/dev/null | tail -1)
+            echo "  ─────────────────────────────"
+            echo "  Total collections: $TOTAL"
+            echo "═════════════════════════════"
+          MONGODB
+
       - name: Ensure cookies.txt exists
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} \
@@ -226,14 +324,14 @@ jobs:
             set -e
             sleep 5
 
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/favicon.ico || echo "000")
-            if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "404" ]; then
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:9000/health || echo "000")
+            if [ "$HTTP_CODE" != "200" ]; then
               echo "Health check failed! HTTP code: $HTTP_CODE"
               sudo -n journalctl -u lyria --no-pager -n 30
               exit 1
             fi
 
-            echo "Health check passed! HTTP code: $HTTP_CODE"
+            echo "✓ Health check passed (HTTP $HTTP_CODE)"
           HEALTHCHECK
 
       - name: Rollback on failure
