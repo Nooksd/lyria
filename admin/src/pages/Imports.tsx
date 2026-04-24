@@ -203,6 +203,18 @@ export default function Imports() {
     }
   };
 
+  const forceStartJob = async (jobId: string, artistName?: string) => {
+    const name = artistName || 'este job';
+    if (!confirm(`Forçar início de "${name}"?\nO job em andamento será interrompido e este começará imediatamente.`)) return;
+    try {
+      await api.post(`/admin/import/jobs/${jobId}/force-start`);
+      show(`"${name}" será iniciado em instantes`);
+      loadJobs();
+    } catch (err: any) {
+      show(err.response?.data?.error || 'Erro ao forçar início', 'error');
+    }
+  };
+
   const closeDetail = () => {
     if (eventSourceRef.current) {
       eventSourceRef.current.abort();
@@ -327,9 +339,20 @@ export default function Imports() {
               <span style={{ marginLeft: 12 }}>{statusBadge(jobDetail.status)}</span>
             </div>
             {(jobDetail.status === 'queued' || jobDetail.status === 'running') && (
-              <button className="btn btn-sm" style={{ background: 'var(--danger)', color: '#fff' }} onClick={() => cancelJob(selectedJob)}>
-                Cancelar
-              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {jobDetail.status === 'queued' && (
+                  <button
+                    className="btn btn-sm"
+                    style={{ background: '#7c3aed', color: '#fff' }}
+                    onClick={() => forceStartJob(selectedJob, jobDetail.artistName)}
+                  >
+                    ⚡ Forçar início
+                  </button>
+                )}
+                <button className="btn btn-sm" style={{ background: 'var(--danger)', color: '#fff' }} onClick={() => cancelJob(selectedJob)}>
+                  Cancelar
+                </button>
+              </div>
             )}
           </div>
 
@@ -497,6 +520,16 @@ export default function Imports() {
                           <button className="btn btn-sm btn-primary" onClick={() => openJob(job._id)}>
                             Ver
                           </button>
+                          {job.status === 'queued' && (
+                            <button
+                              className="btn-icon"
+                              title="Forçar início"
+                              style={{ color: '#7c3aed' }}
+                              onClick={() => forceStartJob(job._id, job.artistName)}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+                            </button>
+                          )}
                           {(job.status === 'queued' || job.status === 'running') && (
                             <button className="btn-icon danger" title="Cancelar" onClick={() => cancelJob(job._id)}>
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>

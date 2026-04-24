@@ -27,17 +27,19 @@ var importJobCollection *mongo.Collection = database.OpenCollection(database.Cli
 
 // ImportQueue manages a sequential queue of import jobs
 type ImportQueue struct {
-	mu          sync.Mutex
-	queue       chan primitive.ObjectID
-	cancelFuncs map[string]context.CancelFunc
-	subscribers map[string][]chan model.ImportLog
-	subMu       sync.RWMutex
+	mu           sync.Mutex
+	queue        chan primitive.ObjectID
+	priorityChan chan primitive.ObjectID // force-start: processed before normal queue
+	cancelFuncs  map[string]context.CancelFunc
+	subscribers  map[string][]chan model.ImportLog
+	subMu        sync.RWMutex
 }
 
 var importQueue = &ImportQueue{
-	queue:       make(chan primitive.ObjectID, 100),
-	cancelFuncs: make(map[string]context.CancelFunc),
-	subscribers: make(map[string][]chan model.ImportLog),
+	queue:        make(chan primitive.ObjectID, 100),
+	priorityChan: make(chan primitive.ObjectID, 1),
+	cancelFuncs:  make(map[string]context.CancelFunc),
+	subscribers:  make(map[string][]chan model.ImportLog),
 }
 
 // StartImportWorker starts the background worker that processes import jobs sequentially
@@ -68,7 +70,18 @@ func StartImportWorker() {
 }
 
 func (q *ImportQueue) worker() {
-	for jobID := range q.queue {
+	for {
+		var jobID primitive.ObjectID
+		// Always drain priority first (non-blocking check)
+		select {
+		case jobID = <-q.priorityChan:
+		default:
+			// Then block on either channel, priority wins if both ready
+			select {
+			case jobID = <-q.priorityChan:
+			case jobID = <-q.queue:
+			}
+		}
 		q.processJob(jobID)
 	}
 }
@@ -235,7 +248,8 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 		return
 	}
 
-	if job.Status == "cancelled" {
+	// Only process jobs that are still queued — skips duplicates and already-handled jobs
+	if job.Status != "queued" {
 		return
 	}
 
@@ -812,6 +826,48 @@ func CancelImportJob() gin.HandlerFunc {
 
 		importQueue.Cancel(jobId)
 		c.JSON(http.StatusOK, gin.H{"message": "Cancelamento solicitado"})
+	}
+}
+
+func ForceStartImportJob() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		jobId := c.Param("jobId")
+		id, err := primitive.ObjectIDFromHex(jobId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		// Job must be queued (not already running/completed)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		var job model.ImportJob
+		if err := importJobCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&job); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Job não encontrado"})
+			return
+		}
+		if job.Status != "queued" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Apenas jobs na fila podem ser forçados (status atual: " + job.Status + ")"})
+			return
+		}
+
+		// Cancel any currently running job so the worker becomes free immediately
+		importQueue.mu.Lock()
+		for runningID, cancelFn := range importQueue.cancelFuncs {
+			if runningID != jobId {
+				cancelFn()
+			}
+		}
+		importQueue.mu.Unlock()
+
+		// Replace whatever is in the priority slot with this job
+		select {
+		case <-importQueue.priorityChan:
+		default:
+		}
+		importQueue.priorityChan <- id
+
+		c.JSON(http.StatusOK, gin.H{"message": "Job será iniciado assim que o atual for interrompido"})
 	}
 }
 
