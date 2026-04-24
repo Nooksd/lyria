@@ -80,6 +80,10 @@ func runYtdlpWithRetry(
 
 		attemptCtx, attemptCancel := context.WithTimeout(ctx, attemptTimeout)
 		cmd := exec.CommandContext(attemptCtx, "yt-dlp", ytArgs...)
+		// Allow up to 15s for child processes (e.g. ffmpeg spawned by yt-dlp) to
+		// close their pipes after the main process is killed, preventing cmd.Run()
+		// from blocking indefinitely when context is cancelled.
+		cmd.WaitDelay = 15 * time.Second
 		var cmdStderr bytes.Buffer
 		cmd.Stderr = &cmdStderr
 

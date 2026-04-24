@@ -249,7 +249,10 @@ func GetWaveform(audioPath string) ([]float64, error) {
 	defer os.Remove(tmpfile.Name())
 	defer tmpfile.Close()
 
-	cmd := exec.Command(
+	wfCtx, wfCancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer wfCancel()
+	cmd := exec.CommandContext(
+		wfCtx,
 		"/usr/bin/ffmpeg",
 		"-i", audioPath,
 		"-ac", "1",
@@ -259,6 +262,7 @@ func GetWaveform(audioPath string) ([]float64, error) {
 		"-y",
 		tmpfile.Name(),
 	)
+	cmd.WaitDelay = 15 * time.Second
 
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

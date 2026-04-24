@@ -598,11 +598,14 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 			if audioPath != fmt.Sprintf("uploads/music/%s.m4a", musicOID.Hex()) {
 				m4aPath := fmt.Sprintf("uploads/music/%s.m4a", musicOID.Hex())
-				convCmd := exec.Command("/usr/bin/ffmpeg", "-i", audioPath, "-c:a", "aac", "-b:a", "192k", "-y", m4aPath)
+				convCtx, convCancel := context.WithTimeout(ctx, 3*time.Minute)
+				convCmd := exec.CommandContext(convCtx, "/usr/bin/ffmpeg", "-i", audioPath, "-c:a", "aac", "-b:a", "192k", "-y", m4aPath)
+				convCmd.WaitDelay = 15 * time.Second
 				if convErr := convCmd.Run(); convErr == nil {
 					os.Remove(audioPath)
 					audioPath = m4aPath
 				}
+				convCancel()
 			}
 
 			waveform, err := GetWaveform(audioPath)
