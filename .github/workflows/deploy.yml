@@ -195,19 +195,43 @@ jobs:
               sudo -n systemctl enable mongod
               sudo -n systemctl start mongod
 
-              echo "Waiting for MongoDB to start..."
-              sleep 5
+              echo "Waiting for MongoDB to be ready (up to 60s)..."
+              MONGOD_READY=false
+              for i in $(seq 1 20); do
+                if mongosh 127.0.0.1:27017 --eval "db.adminCommand('ping')" --quiet >/dev/null 2>&1; then
+                  MONGOD_READY=true
+                  break
+                fi
+                echo "  Attempt $i/20, waiting 3s..."
+                sleep 3
+              done
+              if [ "$MONGOD_READY" = "false" ]; then
+                echo "✗ mongod failed to start!"
+                sudo -n systemctl status mongod --no-pager || true
+                sudo -n journalctl -u mongod --no-pager -n 50
+                exit 1
+              fi
+              echo "✓ mongod is up"
 
               # Create admin user (no-auth mode on first boot)
               mongosh 127.0.0.1:27017 --eval \
-                "use admin; db.createUser({user:'admin',pwd:'admin123',roles:[{role:'root',db:'admin'}]});"
+                "use admin; db.createUser({user:'admin',pwd:'admin123',roles:[{role:'root',db:'admin'}]});" || true
 
               # Enable authentication
               if ! sudo -n grep -q "authorization: enabled" /etc/mongod.conf; then
                 printf '\nsecurity:\n  authorization: enabled\n' | sudo -n tee -a /etc/mongod.conf
               fi
               sudo -n systemctl restart mongod
-              sleep 3
+
+              # Wait for mongod to come back after restart
+              echo "Waiting for mongod to restart with auth..."
+              for i in $(seq 1 10); do
+                if mongosh "mongodb://admin:admin123@127.0.0.1:27017/?authSource=admin" \
+                    --eval "db.adminCommand('ping')" --quiet >/dev/null 2>&1; then
+                  break
+                fi
+                sleep 3
+              done
 
               echo "✓ MongoDB $MONGO_VERSION installed and auth configured"
             fi
