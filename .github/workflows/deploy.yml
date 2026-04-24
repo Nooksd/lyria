@@ -172,6 +172,10 @@ jobs:
               echo "MongoDB not found. Installing MongoDB..."
               UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "jammy")
 
+              # Remove any stale MongoDB repo files from previous attempts
+              sudo -n rm -f /etc/apt/sources.list.d/mongodb-org-*.list
+              sudo -n rm -f /usr/share/keyrings/mongodb-server-*.gpg
+
               # MongoDB 8.0 for Noble (24.04), 7.0 for older releases
               if [ "$UBUNTU_CODENAME" = "noble" ]; then
                 MONGO_VERSION="8.0"
