@@ -210,17 +210,7 @@ jobs:
             sleep 2
 
             # Write a clean minimal mongod.conf (no auth — added after user creation)
-            sudo -n tee /etc/mongod.conf > /dev/null << 'MONGODCONF'
-storage:
-  dbPath: /var/lib/mongodb
-systemLog:
-  destination: file
-  logAppend: true
-  path: /var/log/mongodb/mongod.log
-net:
-  port: 27017
-  bindIp: 127.0.0.1
-MONGODCONF
+            printf 'storage:\n  dbPath: /var/lib/mongodb\nsystemLog:\n  destination: file\n  logAppend: true\n  path: /var/log/mongodb/mongod.log\nnet:\n  port: 27017\n  bindIp: 127.0.0.1\n' | sudo -n tee /etc/mongod.conf > /dev/null
 
             # Ensure data and log dirs exist with correct ownership
             sudo -n mkdir -p /var/lib/mongodb /var/log/mongodb
@@ -262,11 +252,7 @@ MONGODCONF
             '
 
             # Enable auth in config
-            sudo -n tee -a /etc/mongod.conf > /dev/null << 'AUTHCONF'
-
-security:
-  authorization: enabled
-AUTHCONF
+            printf '\nsecurity:\n  authorization: enabled\n' | sudo -n tee -a /etc/mongod.conf > /dev/null
 
             sudo -n systemctl restart mongod
 
