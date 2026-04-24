@@ -70,24 +70,38 @@ func runYtdlpWithRetry(
 ) ytdlpResult {
 	backoff := config.InitialBackoff
 
+	// Per-attempt hard deadline: kills yt-dlp if it hangs for any reason
+	const attemptTimeout = 4 * time.Minute
+
 	for attempt := 0; attempt <= config.MaxRetries; attempt++ {
 		if cancelled := ctx.Err(); cancelled != nil {
 			return ytdlpResult{Success: false, Stderr: "cancelled", RetryCount: attempt}
 		}
 
-		cmd := exec.CommandContext(ctx, "yt-dlp", ytArgs...)
+		attemptCtx, attemptCancel := context.WithTimeout(ctx, attemptTimeout)
+		cmd := exec.CommandContext(attemptCtx, "yt-dlp", ytArgs...)
 		var cmdStderr bytes.Buffer
 		cmd.Stderr = &cmdStderr
 
 		err := cmd.Run()
+		attemptCancel()
 		if err == nil {
 			return ytdlpResult{Success: true, RetryCount: attempt}
 		}
 
 		errMsg := cmdStderr.String()
 
-		// If not retryable, fail immediately
-		if !isRetryableError(errMsg) {
+		// If context was cancelled (job cancel or per-attempt timeout), handle it
+		if ctx.Err() != nil {
+			return ytdlpResult{Success: false, Stderr: "cancelled", RetryCount: attempt}
+		}
+		if attemptCtx.Err() != nil && ctx.Err() == nil {
+			// Per-attempt timeout fired (not job cancel) — treat as retryable
+			logFunc(fmt.Sprintf("⏳ Faixa demorou mais de %s, forçando nova tentativa (%d/%d)...",
+				attemptTimeout.Round(time.Second), attempt+1, config.MaxRetries+1))
+			errMsg = "timeout"
+		} else if !isRetryableError(errMsg) {
+			// If not retryable, fail immediately
 			if len(errMsg) > 500 {
 				errMsg = errMsg[len(errMsg)-500:]
 			}

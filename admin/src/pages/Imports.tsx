@@ -422,16 +422,22 @@ export default function Imports() {
                   border: '1px solid var(--border)',
                 }}
               >
-                {logs.map((log, i) => (
-                  <div key={i} style={{
-                    color:
-                      log.type === 'error' ? '#ef4444' :
-                      log.type === 'done' ? '#22c55e' :
-                      '#a3a3a3',
-                  }}>
-                    {log.message}
-                  </div>
-                ))}
+                {logs.map((log, i) => {
+                  const ts = log.time
+                    ? new Date(log.time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                    : '';
+                  return (
+                    <div key={i} style={{
+                      color:
+                        log.type === 'error' ? '#ef4444' :
+                        log.type === 'done' ? '#22c55e' :
+                        '#a3a3a3',
+                    }}>
+                      {ts && <span style={{ color: '#555', marginRight: 8 }}>[{ts}]</span>}
+                      {log.message}
+                    </div>
+                  );
+                })}
                 {streaming && (
                   <div style={{ color: 'var(--accent)', marginTop: 4 }}>⏳ Processando...</div>
                 )}
