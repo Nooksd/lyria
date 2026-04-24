@@ -178,14 +178,57 @@ jobs:
             # ── 1. Install MongoDB if not present ──────────────────────────
             if command -v mongod &>/dev/null; then
               echo "✓ MongoDB already installed: $(mongod --version | head -1)"
-              sudo -n systemctl start mongod 2>/dev/null || true
-              # Verify it actually came up (might be crashing due to prior bad config)
-              sleep 3
-              if ! sudo -n systemctl is-active --quiet mongod; then
+
+              # Stop mongod and clean any corrupted/stale data from previous crash
+              sudo -n systemctl stop mongod 2>/dev/null || true
+              sleep 1
+
+              # Remove auth config — will re-add after fresh start with user created
+              sudo -n sed -i '/^security:/d' /etc/mongod.conf
+              sudo -n sed -i '/authorization:/d' /etc/mongod.conf
+
+              # Wipe data dir (corrupted by prior SIGILL crashes; data comes from Atlas anyway)
+              sudo -n rm -rf /var/lib/mongodb/*
+              sudo -n chown -R mongodb:mongodb /var/lib/mongodb
+
+              sudo -n systemctl start mongod
+
+              echo "Waiting for mongod to be ready (up to 60s)..."
+              MONGOD_READY=false
+              for i in $(seq 1 20); do
+                if mongosh 127.0.0.1:27017 --eval "db.adminCommand('ping')" --quiet >/dev/null 2>&1; then
+                  MONGOD_READY=true
+                  break
+                fi
+                echo "  Attempt $i/20, waiting 3s..."
+                sleep 3
+              done
+              if [ "$MONGOD_READY" = "false" ]; then
                 echo "✗ mongod failed to start! Logs:"
-                sudo -n journalctl -u mongod --no-pager -n 30
+                sudo -n journalctl -u mongod --no-pager -n 50
                 exit 1
               fi
+              echo "✓ mongod is up (no-auth)"
+
+              # Create admin user via localhost exception
+              mongosh 127.0.0.1:27017 --eval \
+                "use admin; db.createUser({user:'admin',pwd:'admin123',roles:[{role:'root',db:'admin'}]});" || true
+
+              # Enable auth
+              if ! sudo -n grep -q "authorization: enabled" /etc/mongod.conf; then
+                printf '\nsecurity:\n  authorization: enabled\n' | sudo -n tee -a /etc/mongod.conf
+              fi
+              sudo -n systemctl restart mongod
+
+              echo "Waiting for mongod to restart with auth..."
+              for i in $(seq 1 10); do
+                if mongosh "mongodb://admin:admin123@127.0.0.1:27017/?authSource=admin" \
+                    --eval "db.adminCommand('ping')" --quiet >/dev/null 2>&1; then
+                  echo "✓ mongod running with auth"
+                  break
+                fi
+                sleep 3
+              done
             else
               echo "MongoDB not found. Installing MongoDB..."
               UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "jammy")
