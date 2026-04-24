@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "127.0.0.1:27017:27017"   # exposto apenas localmente (para migração e manutenção)
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Roda uma vez: se o banco estiver vazio, importa tudo do Atlas
+  migrate:
+    image: mongo:7
+    restart: "no"
+    volumes:
+      - ./mongo-init/migrate.sh:/migrate.sh:ro
+    entrypoint: ["bash", "/migrate.sh"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  server:
+    build: .
+    restart: always
+    ports:
+      - "9000:9000"
+    env_file:
+      - .env
+    depends_on:
+      mongo:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./uploads:/app/uploads
+
+volumes:
+  mongo_data:

@@ -13,14 +13,9 @@ import (
 )
 
 func DBInstance() *mongo.Client {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Warning: .env file not found. Falling back to environment variables.")
-	}
-
-	err = godotenv.Load(".env")
-	if err != nil {
-		log.Fatal("Error loading .env file")
+	// Try to load .env file (local dev). In Docker the vars come from docker-compose env_file.
+	if err := godotenv.Load(".env"); err != nil {
+		log.Println("Warning: .env file not found, using environment variables.")
 	}
 
 	MongoDb := os.Getenv("MONGODB_URL")
