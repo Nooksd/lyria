@@ -1,4 +1,8 @@
-﻿package controllers
+﻿//go:build ignore
+
+// This file is temporarily disabled. Remove the build constraint above to re-enable.
+
+package controllers
 
 import (
 	"bytes"
