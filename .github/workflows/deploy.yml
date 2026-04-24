@@ -164,10 +164,28 @@ jobs:
             ATLAS_URI="mongodb+srv://pc-trabalho:rYNWsv3wsZWLaYNg@lyria.vrdoy.mongodb.net/Lyria?retryWrites=true&w=majority&appName=Lyria"
             LOCAL_URI="mongodb://admin:admin123@127.0.0.1:27017/Lyria?authSource=admin"
 
+            # ── 0. Check AVX (required by MongoDB 5.0+) ────────────────────
+            if ! grep -q avx /proc/cpuinfo; then
+              echo "✗ CPU does not support AVX instructions (required by MongoDB 5.0+)."
+              echo "  If this is a Proxmox/KVM/VMware VM, enable CPU passthrough:"
+              echo "    Proxmox: set cpu type to 'host' in VM options"
+              echo "    KVM/libvirt: add <cpu mode='host-passthrough'/> to VM XML"
+              echo "    VMware: enable 'Expose hardware-assisted virtualization' or use cpu.features"
+              exit 1
+            fi
+            echo "✓ AVX supported"
+
             # ── 1. Install MongoDB if not present ──────────────────────────
             if command -v mongod &>/dev/null; then
               echo "✓ MongoDB already installed: $(mongod --version | head -1)"
               sudo -n systemctl start mongod 2>/dev/null || true
+              # Verify it actually came up (might be crashing due to prior bad config)
+              sleep 3
+              if ! sudo -n systemctl is-active --quiet mongod; then
+                echo "✗ mongod failed to start! Logs:"
+                sudo -n journalctl -u mongod --no-pager -n 30
+                exit 1
+              fi
             else
               echo "MongoDB not found. Installing MongoDB..."
               UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "jammy")
