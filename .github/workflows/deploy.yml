@@ -239,17 +239,20 @@ jobs:
             echo "✓ mongod is up (no-auth)"
 
             # Create admin user (idempotent: update pwd if already exists)
-            mongosh --host 127.0.0.1 --port 27017 --quiet --eval '
-              use admin;
-              var existing = db.system.users.findOne({user:"admin"});
-              if (!existing) {
-                db.createUser({user:"admin", pwd:"admin123", roles:[{role:"root",db:"admin"}]});
+            mongosh --host 127.0.0.1 --port 27017 --eval '
+              var adb = db.getSiblingDB("admin");
+              if (adb.getUser("admin") === null) {
+                adb.createUser({user:"admin", pwd:"admin123", roles:[{role:"root",db:"admin"}]});
                 print("✓ Admin user created");
               } else {
-                db.updateUser("admin", {pwd:"admin123"});
+                adb.updateUser("admin", {pwd:"admin123"});
                 print("✓ Admin user password updated");
               }
             '
+            if [ $? -ne 0 ]; then
+              echo "✗ createUser failed!"
+              exit 1
+            fi
 
             # Enable auth in config
             printf '\nsecurity:\n  authorization: enabled\n' | sudo -n tee -a /etc/mongod.conf > /dev/null
