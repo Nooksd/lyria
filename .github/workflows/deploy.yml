@@ -169,14 +169,22 @@ jobs:
               echo "✓ MongoDB already installed: $(mongod --version | head -1)"
               sudo -n systemctl start mongod 2>/dev/null || true
             else
-              echo "MongoDB not found. Installing MongoDB 7.0..."
+              echo "MongoDB not found. Installing MongoDB..."
               UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "jammy")
 
-              curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | \
-                sudo -n gpg --batch --yes -o /usr/share/keyrings/mongodb-server-7.0.gpg --dearmor
+              # MongoDB 8.0 for Noble (24.04), 7.0 for older releases
+              if [ "$UBUNTU_CODENAME" = "noble" ]; then
+                MONGO_VERSION="8.0"
+              else
+                MONGO_VERSION="7.0"
+              fi
+              echo "Ubuntu: $UBUNTU_CODENAME → Using MongoDB $MONGO_VERSION"
 
-              echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu ${UBUNTU_CODENAME}/mongodb-org/7.0 multiverse" | \
-                sudo -n tee /etc/apt/sources.list.d/mongodb-org-7.0.list
+              curl -fsSL "https://www.mongodb.org/static/pgp/server-${MONGO_VERSION}.asc" | \
+                sudo -n gpg --batch --yes -o "/usr/share/keyrings/mongodb-server-${MONGO_VERSION}.gpg" --dearmor
+
+              echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-${MONGO_VERSION}.gpg ] https://repo.mongodb.org/apt/ubuntu ${UBUNTU_CODENAME}/mongodb-org/${MONGO_VERSION} multiverse" | \
+                sudo -n tee "/etc/apt/sources.list.d/mongodb-org-${MONGO_VERSION}.list"
 
               sudo -n apt-get update -qq
               sudo -n apt-get install -y mongodb-org
@@ -197,7 +205,7 @@ jobs:
               sudo -n systemctl restart mongod
               sleep 3
 
-              echo "✓ MongoDB 7.0 installed and auth configured"
+              echo "✓ MongoDB $MONGO_VERSION installed and auth configured"
             fi
 
             # ── 2. Verify connection ────────────────────────────────────────
