@@ -20,7 +20,7 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   bool _isLoop = false;
   bool _isShuffle = false;
-  bool _isSettingQueue = false;
+  int _queueSetupVersion = 0;
   bool get isLoop => _isLoop;
   bool get isShuffle => _isShuffle;
   Stream<Duration> get positionStream => _audioPlayer.positionStream;
@@ -94,22 +94,26 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> setQueue(List<Music> queue, int currentIndex) async {
-    if (_isSettingQueue) return;
-    _isSettingQueue = true;
+    if (queue.isEmpty) return;
+    final setupVersion = ++_queueSetupVersion;
+    final safeIndex = currentIndex.clamp(0, queue.length - 1).toInt();
+
     try {
+      await _audioPlayer.stop();
       await _playlist.clear();
+
       final sources = <AudioSource>[];
       for (final music in queue) {
         sources.add(await _createAudioSource(music));
       }
 
+      if (setupVersion != _queueSetupVersion) return;
+
       await _playlist.addAll(sources);
-      await _audioPlayer.setAudioSource(_playlist, initialIndex: currentIndex);
+      await _audioPlayer.seek(Duration.zero, index: safeIndex);
       await _audioPlayer.play();
     } catch (e) {
       debugPrint('Erro ao configurar fila: $e');
-    } finally {
-      _isSettingQueue = false;
     }
   }
 

@@ -5,6 +5,7 @@ import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/core/services/cache/favorites_cache.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_states.dart';
@@ -225,7 +226,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
                                           ? () => musicCubit.setQueue(
                                                 favorites, index, null)
                                           : () {},
-                                      onLongPress: () {},
+                                      onLongPress: available
+                                          ? () => showMusicOptionsSheet(
+                                              context, music)
+                                          : () {},
                                       trailing: IconButton(
                                         icon: Icon(
                                           Icons.favorite,

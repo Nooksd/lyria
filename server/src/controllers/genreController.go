@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	model "server/src/models"
@@ -14,6 +15,16 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+type genreCacheEntry struct {
+	data      gin.H
+	expiresAt time.Time
+}
+
+var (
+	genreCacheMu sync.RWMutex
+	genreCache   = map[string]genreCacheEntry{}
 )
 
 func SearchByGenre() gin.HandlerFunc {
@@ -48,6 +59,17 @@ func SearchByGenre() gin.HandlerFunc {
 		}
 		if lInt > 0 {
 			limitInt = lInt
+		}
+		if limitInt > 50 {
+			limitInt = 50
+		}
+
+		cacheKey := strings.ToLower(strings.TrimSpace(genre)) + "|" + page + "|" + limit
+		if cached, ok := getGenreCache(cacheKey); ok {
+			c.Header("Cache-Control", "private, max-age=60")
+			c.Header("X-Cache", "HIT")
+			c.JSON(http.StatusOK, cached)
+			return
 		}
 
 		skip := int64((pageInt - 1) * limitInt)
@@ -227,7 +249,7 @@ func SearchByGenre() gin.HandlerFunc {
 			return
 		}
 
-		c.JSON(http.StatusOK, gin.H{
+		payload := gin.H{
 			"genre":   genre,
 			"artists": enrichedArtists,
 			"albums":  albums,
@@ -235,6 +257,35 @@ func SearchByGenre() gin.HandlerFunc {
 			"total":   totalCount,
 			"page":    pageInt,
 			"limit":   limitInt,
-		})
+		}
+
+		setGenreCache(cacheKey, payload)
+		c.Header("Cache-Control", "private, max-age=60")
+		c.Header("X-Cache", "MISS")
+		c.JSON(http.StatusOK, payload)
+	}
+}
+
+func getGenreCache(key string) (gin.H, bool) {
+	genreCacheMu.RLock()
+	entry, ok := genreCache[key]
+	genreCacheMu.RUnlock()
+	if !ok || time.Now().After(entry.expiresAt) {
+		if ok {
+			genreCacheMu.Lock()
+			delete(genreCache, key)
+			genreCacheMu.Unlock()
+		}
+		return nil, false
+	}
+	return entry.data, true
+}
+
+func setGenreCache(key string, data gin.H) {
+	genreCacheMu.Lock()
+	defer genreCacheMu.Unlock()
+	genreCache[key] = genreCacheEntry{
+		data:      data,
+		expiresAt: time.Now().Add(10 * time.Minute),
 	}
 }

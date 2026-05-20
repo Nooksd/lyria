@@ -54,7 +54,7 @@ func SyncArtist() gin.HandlerFunc {
 			uCancel()
 		}
 
-		result, err := syncArtistData(context.Background(), artist)
+		result, err := syncArtistData(c.Request.Context(), artist)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -105,13 +105,13 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 	result := &syncResult{ArtistName: artist.Name}
 
 	// 1. Authenticate with Spotify
-	token, err := getSpotifyToken()
+	token, err := getSpotifyTokenWithContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao autenticar no Spotify: %w", err)
 	}
 
 	// 2. Fetch current artist info from Spotify
-	spArtist, err := fetchSpotifyArtist(token, artist.SpotifyID)
+	spArtist, err := fetchSpotifyArtist(ctx, token, artist.SpotifyID)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao buscar artista no Spotify: %w", err)
 	}
@@ -138,7 +138,7 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 	}
 
 	// 4. Fetch all albums from Spotify
-	spAlbums, err := fetchAllSpotifyAlbums(token, artist.SpotifyID)
+	spAlbums, err := fetchAllSpotifyAlbums(ctx, token, artist.SpotifyID)
 	if err != nil {
 		return nil, fmt.Errorf("erro ao buscar álbuns do Spotify: %w", err)
 	}
@@ -180,7 +180,7 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 			break
 		}
 
-		tracks, err := fetchAllSpotifyTracks(token, spAlbum.ID)
+		tracks, err := fetchAllSpotifyTracks(ctx, token, spAlbum.ID)
 		if err != nil {
 			continue
 		}

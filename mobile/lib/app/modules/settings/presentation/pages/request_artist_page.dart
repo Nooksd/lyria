@@ -1,7 +1,35 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
+
+class SpotifyArtistOption {
+  final String spotifyArtistId;
+  final String spotifyUrl;
+  final String name;
+  final String avatarUrl;
+  final List<String> genres;
+
+  const SpotifyArtistOption({
+    required this.spotifyArtistId,
+    required this.spotifyUrl,
+    required this.name,
+    required this.avatarUrl,
+    required this.genres,
+  });
+
+  factory SpotifyArtistOption.fromJson(Map<String, dynamic> json) {
+    return SpotifyArtistOption(
+      spotifyArtistId: json['spotifyArtistId'] as String? ?? '',
+      spotifyUrl: json['spotifyUrl'] as String? ?? '',
+      name: json['name'] as String? ?? '',
+      avatarUrl: json['avatarUrl'] as String? ?? '',
+      genres: (json['genres'] as List? ?? []).map((e) => e.toString()).toList(),
+    );
+  }
+}
 
 class RequestArtistPage extends StatefulWidget {
   const RequestArtistPage({super.key});
@@ -12,43 +40,103 @@ class RequestArtistPage extends StatefulWidget {
 
 class _RequestArtistPageState extends State<RequestArtistPage> {
   final MyHttpClient http = getIt<MyHttpClient>();
-  final _formKey = GlobalKey<FormState>();
-  final _urlController = TextEditingController();
+  final _searchController = TextEditingController();
 
+  Timer? _debounce;
+  List<SpotifyArtistOption> _artists = [];
+  SpotifyArtistOption? _selectedArtist;
+  String _activeSearchQuery = '';
+  bool _isSearching = false;
   bool _isSubmitting = false;
 
-  static final _spotifyArtistRegex = RegExp(
-    r'open\.spotify\.com/artist/[a-zA-Z0-9]+',
-  );
+  Future<void> _searchArtists(String query) async {
+    final value = query.trim();
+    if (value.length < 2) {
+      if (mounted) {
+        setState(() {
+          _activeSearchQuery = '';
+          _artists = [];
+          _isSearching = false;
+        });
+      }
+      return;
+    }
 
-  String? _validateUrl(String? value) {
-    if (value == null || value.trim().isEmpty) {
-      return 'Insira o link do artista';
+    if (!mounted) return;
+    _activeSearchQuery = value;
+    setState(() => _isSearching = true);
+
+    try {
+      final encoded = Uri.encodeQueryComponent(value);
+      final res = await http.get('/artist-request/search?query=$encoded');
+
+      if (!mounted || _activeSearchQuery != value) return;
+
+      if (res['status'] == 200) {
+        final data = res['data']?['artists'] as List? ?? [];
+        setState(() {
+          _artists = data
+              .map((item) => SpotifyArtistOption.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ))
+              .where((artist) => artist.spotifyArtistId.isNotEmpty)
+              .toList();
+        });
+      } else {
+        setState(() => _artists = []);
+      }
+    } finally {
+      if (mounted && _activeSearchQuery == value) {
+        setState(() => _isSearching = false);
+      }
     }
-    if (!_spotifyArtistRegex.hasMatch(value.trim())) {
-      return 'Link inválido. Use o formato: open.spotify.com/artist/...';
-    }
-    return null;
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    setState(() {
+      _activeSearchQuery = value.trim();
+      _selectedArtist = null;
+    });
+
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      _searchArtists(value);
+    });
+  }
+
+  void _selectArtist(SpotifyArtistOption artist) {
+    _debounce?.cancel();
+    setState(() {
+      _activeSearchQuery = '';
+      _selectedArtist = artist;
+      _artists = [];
+      _isSearching = false;
+      _searchController.text = artist.name;
+    });
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    final artist = _selectedArtist;
+    if (artist == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Selecione um artista')),
+      );
+      return;
+    }
 
     setState(() => _isSubmitting = true);
 
     try {
       final res = await http.post('/artist-request', data: {
-        'spotifyUrl': _urlController.text.trim(),
+        'spotifyArtistId': artist.spotifyArtistId,
+        'spotifyUrl': artist.spotifyUrl,
       });
 
       if (!mounted) return;
 
       if (res['status'] == 201 || res['status'] == 200) {
-        _urlController.clear();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Solicitação enviada com sucesso!'),
-          ),
+          const SnackBar(content: Text('Solicitação enviada com sucesso!')),
         );
         context.pop();
       } else {
@@ -57,7 +145,7 @@ class _RequestArtistPageState extends State<RequestArtistPage> {
           SnackBar(content: Text(error.toString())),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Erro ao enviar solicitação')),
@@ -70,7 +158,8 @@ class _RequestArtistPageState extends State<RequestArtistPage> {
 
   @override
   void dispose() {
-    _urlController.dispose();
+    _debounce?.cancel();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -90,151 +179,147 @@ class _RequestArtistPageState extends State<RequestArtistPage> {
       ),
       body: SingleChildScrollView(
         padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 24),
-              // Info card
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.1),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 24),
+            TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              decoration: InputDecoration(
+                labelText: "Artista",
+                hintText: "Buscar no Spotify",
+                border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        "Envie o link do Spotify de um artista que você gostaria que fosse adicionado ao Lyria.",
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .onSurface
-                              .withValues(alpha: 0.8),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _isSearching
+                    ? const Padding(
+                        padding: EdgeInsets.all(14),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
+                      )
+                    : _searchController.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() {
+                                _activeSearchQuery = '';
+                                _selectedArtist = null;
+                                _artists = [];
+                                _isSearching = false;
+                              });
+                            },
+                          ),
+              ),
+            ),
+            if (_artists.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 360),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.12),
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: _artists.length,
+                  separatorBuilder: (_, __) => Divider(
+                    height: 1,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.08),
+                  ),
+                  itemBuilder: (context, index) {
+                    final artist = _artists[index];
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: primary,
+                        backgroundImage: artist.avatarUrl.isNotEmpty
+                            ? NetworkImage(artist.avatarUrl)
+                            : null,
+                        child: artist.avatarUrl.isEmpty
+                            ? const Icon(Icons.person, color: Colors.white70)
+                            : null,
                       ),
+                      title: Text(
+                        artist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        artist.genres.take(2).join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => _selectArtist(artist),
+                    );
+                  },
+                ),
+              ),
+            ],
+            if (_selectedArtist != null) ...[
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Icon(Icons.check_circle, color: primary, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      _selectedArtist!.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
-              // How to get link
-              Text(
-                "Como obter o link:",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 8),
-              _buildStep(context, "1", "Abra o Spotify e vá ao perfil do artista"),
-              _buildStep(context, "2", "Toque nos 3 pontos (⋯) ou em Compartilhar"),
-              _buildStep(context, "3", "Selecione \"Copiar link\""),
-              _buildStep(context, "4", "Cole o link abaixo"),
-              const SizedBox(height: 24),
-              // URL field
-              TextFormField(
-                controller: _urlController,
-                validator: _validateUrl,
-                decoration: InputDecoration(
-                  labelText: "Link do Spotify",
-                  hintText: "https://open.spotify.com/artist/...",
-                  border: OutlineInputBorder(
+            ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(Icons.link),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () => _urlController.clear(),
-                  ),
                 ),
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 24),
-              // Submit button
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text(
-                          "Enviar Solicitação",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
                         ),
-                ),
+                      )
+                    : const Text(
+                        "Enviar Solicitação",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
-              const SizedBox(height: 40),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildStep(BuildContext context, String number, String text) {
-    final primary = Theme.of(context).colorScheme.primary;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 24,
-            height: 24,
-            decoration: BoxDecoration(
-              color: primary.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                number,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: primary,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 14,
-                color: Theme.of(context)
-                    .colorScheme
-                    .onSurface
-                    .withValues(alpha: 0.7),
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

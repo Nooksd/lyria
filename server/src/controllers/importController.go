@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,8 +43,8 @@ type spotifyArtist struct {
 
 type spotifyImage struct {
 	URL    string `json:"url"`
-	Height int    `json:"height"`
-	Width  int    `json:"width"`
+	Height *int   `json:"height"`
+	Width  *int   `json:"width"`
 }
 
 type spotifyAlbumsResponse struct {
@@ -135,7 +136,7 @@ func ImportFromSpotify() gin.HandlerFunc {
 		if !sse.send("progress", map[string]string{"message": "Autenticando no Spotify..."}) {
 			return
 		}
-		token, err := getSpotifyToken()
+		token, err := getSpotifyTokenWithContext(c.Request.Context())
 		if err != nil {
 			sse.send("error", map[string]string{"message": "Erro ao autenticar no Spotify: " + err.Error()})
 			return
@@ -145,7 +146,7 @@ func ImportFromSpotify() gin.HandlerFunc {
 		if !sse.send("progress", map[string]string{"message": "Buscando dados do artista..."}) {
 			return
 		}
-		spArtist, err := fetchSpotifyArtist(token, artistSpotifyId)
+		spArtist, err := fetchSpotifyArtist(c.Request.Context(), token, artistSpotifyId)
 		if err != nil {
 			sse.send("error", map[string]string{"message": "Erro ao buscar artista: " + err.Error()})
 			return
@@ -158,7 +159,7 @@ func ImportFromSpotify() gin.HandlerFunc {
 		if !sse.send("progress", map[string]string{"message": "Buscando álbuns e faixas..."}) {
 			return
 		}
-		spAlbums, err := fetchAllSpotifyAlbums(token, artistSpotifyId)
+		spAlbums, err := fetchAllSpotifyAlbums(c.Request.Context(), token, artistSpotifyId)
 		if err != nil {
 			sse.send("error", map[string]string{"message": "Erro ao buscar álbuns: " + err.Error()})
 			return
@@ -167,7 +168,7 @@ func ImportFromSpotify() gin.HandlerFunc {
 		var albums []importAlbum
 		totalTracks := 0
 		for _, spAlbum := range spAlbums {
-			tracks, err := fetchAllSpotifyTracks(token, spAlbum.ID)
+			tracks, err := fetchAllSpotifyTracks(c.Request.Context(), token, spAlbum.ID)
 			if err != nil {
 				sse.send("progress", map[string]string{"message": fmt.Sprintf("Aviso: não foi possível buscar faixas de '%s'", spAlbum.Name)})
 				continue
@@ -476,6 +477,10 @@ func parseSpotifyArtistId(url string) string {
 }
 
 func getSpotifyToken() (string, error) {
+	return getSpotifyTokenWithContext(context.Background())
+}
+
+func getSpotifyTokenWithContext(ctx context.Context) (string, error) {
 	clientId := os.Getenv("SPOTIFY_CLIENT_ID")
 	clientSecret := os.Getenv("SPOTIFY_CLIENT_SECRET")
 
@@ -485,55 +490,168 @@ func getSpotifyToken() (string, error) {
 
 	authStr := base64.StdEncoding.EncodeToString([]byte(clientId + ":" + clientSecret))
 
-	body := strings.NewReader("grant_type=client_credentials")
-	req, err := http.NewRequest("POST", "https://accounts.spotify.com/api/token", body)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Authorization", "Basic "+authStr)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	attempt := 0
+	for {
+		body := strings.NewReader("grant_type=client_credentials")
+		req, err := http.NewRequestWithContext(ctx, "POST", "https://accounts.spotify.com/api/token", body)
+		if err != nil {
+			return "", err
+		}
+		req.Header.Set("Authorization", "Basic "+authStr)
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return "", ctx.Err()
+			}
+			if attempt < 4 {
+				if err := sleepWithContext(ctx, spotifyRetryDelay("", attempt)); err != nil {
+					return "", err
+				}
+				attempt++
+				continue
+			}
+			return "", err
+		}
 
-	var token spotifyToken
-	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
-		return "", err
-	}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			wait := spotifyRetryDelay(resp.Header.Get("Retry-After"), attempt)
+			resp.Body.Close()
+			if err := sleepWithContext(ctx, wait); err != nil {
+				return "", err
+			}
+			attempt++
+			continue
+		}
 
-	if token.AccessToken == "" {
-		return "", fmt.Errorf("falha ao obter token do Spotify")
-	}
+		if resp.StatusCode >= 500 && resp.StatusCode <= 599 && attempt < 5 {
+			resp.Body.Close()
+			if err := sleepWithContext(ctx, spotifyRetryDelay("", attempt)); err != nil {
+				return "", err
+			}
+			attempt++
+			continue
+		}
 
-	return token.AccessToken, nil
+		if resp.StatusCode != http.StatusOK {
+			respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			resp.Body.Close()
+			return "", fmt.Errorf("Spotify token retornou %d: %s", resp.StatusCode, string(respBody))
+		}
+
+		var token spotifyToken
+		if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
+			resp.Body.Close()
+			return "", err
+		}
+		resp.Body.Close()
+
+		if token.AccessToken == "" {
+			return "", fmt.Errorf("falha ao obter token do Spotify")
+		}
+
+		return token.AccessToken, nil
+	}
 }
 
 func spotifyGet(token, url string) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Spotify API retornou %d: %s", resp.StatusCode, string(respBody))
-	}
-
-	return io.ReadAll(resp.Body)
+	return spotifyGetWithContext(context.Background(), token, url)
 }
 
-func fetchSpotifyArtist(token, artistId string) (*spotifyArtist, error) {
-	data, err := spotifyGet(token, "https://api.spotify.com/v1/artists/"+artistId)
+func spotifyGetWithContext(ctx context.Context, token, url string) ([]byte, error) {
+	attempt := 0
+
+	for {
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if attempt < 4 {
+				if err := sleepWithContext(ctx, spotifyRetryDelay("", attempt)); err != nil {
+					return nil, err
+				}
+				attempt++
+				continue
+			}
+			return nil, err
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			body, readErr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return body, readErr
+		}
+
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		resp.Body.Close()
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			wait := spotifyRetryDelay(resp.Header.Get("Retry-After"), attempt)
+			if err := sleepWithContext(ctx, wait); err != nil {
+				return nil, err
+			}
+			attempt++
+			continue
+		}
+
+		if resp.StatusCode >= 500 && resp.StatusCode <= 599 && attempt < 5 {
+			if err := sleepWithContext(ctx, spotifyRetryDelay("", attempt)); err != nil {
+				return nil, err
+			}
+			attempt++
+			continue
+		}
+
+		return nil, fmt.Errorf("Spotify API retornou %d: %s", resp.StatusCode, string(respBody))
+	}
+}
+
+func spotifyRetryDelay(retryAfter string, attempt int) time.Duration {
+	if retryAfter != "" {
+		if seconds, err := strconv.Atoi(strings.TrimSpace(retryAfter)); err == nil && seconds > 0 {
+			return capSpotifyDelay(time.Duration(seconds) * time.Second)
+		}
+		if retryAt, err := time.Parse(http.TimeFormat, retryAfter); err == nil {
+			return capSpotifyDelay(time.Until(retryAt))
+		}
+	}
+
+	delay := time.Duration(5*(1<<min(attempt, 5))) * time.Second
+	return capSpotifyDelay(delay)
+}
+
+func capSpotifyDelay(delay time.Duration) time.Duration {
+	if delay < 5*time.Second {
+		return 5 * time.Second
+	}
+	if delay > 5*time.Minute {
+		return 5 * time.Minute
+	}
+	return delay
+}
+
+func sleepWithContext(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func fetchSpotifyArtist(ctx context.Context, token, artistId string) (*spotifyArtist, error) {
+	data, err := spotifyGetWithContext(ctx, token, "https://api.spotify.com/v1/artists/"+artistId)
 	if err != nil {
 		return nil, err
 	}
@@ -546,12 +664,12 @@ func fetchSpotifyArtist(token, artistId string) (*spotifyArtist, error) {
 	return &artist, nil
 }
 
-func fetchAllSpotifyAlbums(token, artistId string) ([]spotifyAlbum, error) {
+func fetchAllSpotifyAlbums(ctx context.Context, token, artistId string) ([]spotifyAlbum, error) {
 	var allAlbums []spotifyAlbum
 	url := fmt.Sprintf("https://api.spotify.com/v1/artists/%s/albums?include_groups=album,single,compilation&limit=50&market=BR", artistId)
 
 	for url != "" {
-		data, err := spotifyGet(token, url)
+		data, err := spotifyGetWithContext(ctx, token, url)
 		if err != nil {
 			return nil, err
 		}
@@ -573,12 +691,12 @@ func fetchAllSpotifyAlbums(token, artistId string) ([]spotifyAlbum, error) {
 	return allAlbums, nil
 }
 
-func fetchAllSpotifyTracks(token, albumId string) ([]spotifyTrack, error) {
+func fetchAllSpotifyTracks(ctx context.Context, token, albumId string) ([]spotifyTrack, error) {
 	var allTracks []spotifyTrack
 	url := fmt.Sprintf("https://api.spotify.com/v1/albums/%s/tracks?limit=50&market=BR", albumId)
 
 	for url != "" {
-		data, err := spotifyGet(token, url)
+		data, err := spotifyGetWithContext(ctx, token, url)
 		if err != nil {
 			return nil, err
 		}

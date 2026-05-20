@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_states.dart';
@@ -39,24 +40,23 @@ class _PlaylistMusicsBuilderState extends State<PlaylistMusicsBuilder> {
     return status == DownloadStatus.downloaded;
   }
 
-  void _showMusicOptions(BuildContext context, String musicId) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-      useRootNavigator: true,
-      builder: (ctx) => Wrap(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.remove_circle_outline, color: Colors.red),
-            title: const Text('Remover da playlist',
-                style: TextStyle(color: Colors.red)),
-            onTap: () {
-              Navigator.pop(ctx);
-              widget.onRemoveMusic?.call(musicId);
-            },
+  void _showMusicOptions(BuildContext context, Music music) {
+    showMusicOptionsSheet(
+      context,
+      music,
+      extraActionsBuilder: (sheetContext) => [
+        ListTile(
+          leading: const Icon(Icons.remove_circle_outline, color: Colors.red),
+          title: const Text(
+            'Remover da playlist',
+            style: TextStyle(color: Colors.red),
           ),
-        ],
-      ),
+          onTap: () {
+            Navigator.pop(sheetContext);
+            widget.onRemoveMusic?.call(music.id);
+          },
+        ),
+      ],
     );
   }
 
@@ -93,14 +93,16 @@ class _PlaylistMusicsBuilderState extends State<PlaylistMusicsBuilder> {
                   onTap: () => _playPlaylistFromIndex(index),
                   trailing: IconButton(
                     onPressed: available
-                        ? () => _showMusicOptions(context, music.id)
+                        ? () => _showMusicOptions(context, music)
                         : null,
                     icon: Icon(
                       CustomIcons.dots,
                       size: 20,
                     ),
                   ),
-                  onLongPress: () {},
+                  onLongPress: available
+                      ? () => _showMusicOptions(context, music)
+                      : () {},
                 );
               },
             );

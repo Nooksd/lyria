@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_states.dart';
@@ -322,7 +323,8 @@ class _AlbumPageState extends State<AlbumPage> {
                             enabled: available,
                             onTap: () => musicCubit.setQueue(
                                 musics, index, null),
-                            onLongPress: () {},
+                            onLongPress: () =>
+                                showMusicOptionsSheet(context, music),
                             trailing: null,
                           ),
                         );

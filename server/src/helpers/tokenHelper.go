@@ -20,8 +20,8 @@ type SignedDetails struct {
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 
 func GenerateTokens(email string, name string, avatarUrl string, userId string, userType string, keepLogged bool) (signedAccessToken string, signedRefreshToken string, err error) {
-	accessTokenDuration := time.Hour * 24
-	refreshTokenDuration := time.Hour * 24 * 30
+	accessTokenDuration := time.Hour * 24 * 7
+	refreshTokenDuration := time.Hour * 24 * 365 * 10
 
 	accessClaims := &SignedDetails{
 		Email:     email,

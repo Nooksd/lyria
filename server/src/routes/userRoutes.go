@@ -19,5 +19,6 @@ func UserRoutes(router *gin.RouterGroup) {
 		user.GET("/favorites", controllers.GetFavorites())
 	}
 	router.POST("/image/avatar", controllers.UploadAvatar())
+	router.GET("/artist-request/search", controllers.SearchSpotifyArtistsForRequest())
 	router.POST("/artist-request", controllers.CreateArtistRequest())
 }

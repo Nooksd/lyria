@@ -127,11 +127,11 @@ type spotifySearchArtistsResponse struct {
 	} `json:"artists"`
 }
 
-func searchSpotifyArtists(token, genre string, offset int) ([]spotifyArtist, error) {
+func searchSpotifyArtists(ctx context.Context, token, genre string, offset int) ([]spotifyArtist, error) {
 	q := url.QueryEscape(fmt.Sprintf("genre:%s", genre))
 	apiURL := fmt.Sprintf("https://api.spotify.com/v1/search?q=%s&type=artist&market=BR&limit=50&offset=%d", q, offset)
 
-	data, err := spotifyGet(token, apiURL)
+	data, err := spotifyGetWithContext(ctx, token, apiURL)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +191,7 @@ func (ai *AutoImporter) run(ctx context.Context) {
 		}
 
 		// Get fresh Spotify token
-		token, err := getSpotifyToken()
+		token, err := getSpotifyTokenWithContext(ctx)
 		if err != nil {
 			select {
 			case <-ctx.Done():
@@ -203,7 +203,7 @@ func (ai *AutoImporter) run(ctx context.Context) {
 
 		genre := autoImportGenres[state.GenreIndex%len(autoImportGenres)]
 
-		artists, err := searchSpotifyArtists(token, genre, state.Offset)
+		artists, err := searchSpotifyArtists(ctx, token, genre, state.Offset)
 		if err != nil || len(artists) == 0 {
 			// Move to next genre
 			state.GenreIndex++

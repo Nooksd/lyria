@@ -28,6 +28,10 @@ class DioClient implements MyHttpClient {
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
+          if (options.extra['skipAuth'] == true) {
+            return handler.next(options);
+          }
+
           String? accessToken = await storage.get('accessToken');
 
           if (accessToken != null) {
@@ -59,8 +63,9 @@ class DioClient implements MyHttpClient {
                   '/auth/refresh-token',
                   options: Options(
                     headers: {
-                      'Token': refreshToken,
+                      'Authorization': refreshToken,
                     },
+                    extra: {'skipAuth': true},
                   ),
                 );
 

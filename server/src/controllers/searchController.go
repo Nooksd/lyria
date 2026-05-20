@@ -8,12 +8,14 @@ import (
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type LyricLine struct {
@@ -55,11 +57,21 @@ func GeneralSearch() gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		searchQuery := c.Query("query")
+		searchQuery := strings.TrimSpace(c.Query("query"))
 		if searchQuery == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Parâmetro de pesquisa 'query' é obrigatório"})
 			return
 		}
+
+		pageInt := parsePositiveQueryInt(c.DefaultQuery("page", "1"), 1, 100)
+		limitInt := parsePositiveQueryInt(c.DefaultQuery("limit", "20"), 20, 50)
+		skip := (pageInt - 1) * limitInt
+		queryWindow := skip + limitInt
+		if queryWindow > 150 {
+			queryWindow = 150
+		}
+		includeLyrics := c.Query("includeLyrics") == "true"
+		includeWaveform := c.Query("includeWaveform") == "true"
 
 		musicParam := c.Query("music")
 		artistParam := c.Query("artist")
@@ -77,10 +89,19 @@ func GeneralSearch() gin.HandlerFunc {
 
 		var results []bson.M
 
-		searchRegex := bson.M{"name": bson.M{"$regex": searchQuery, "$options": "i"}}
+		serverURL := os.Getenv("SERVER_URL")
+		searchRegex := bson.M{"name": bson.M{"$regex": regexp.QuoteMeta(searchQuery), "$options": "i"}}
+		totalResults := int64(0)
 
 		if searchArtist {
-			artistCursor, err := artistCollection.Find(ctx, searchRegex)
+			if count, err := artistCollection.CountDocuments(ctx, searchRegex); err == nil {
+				totalResults += count
+			}
+			findOpts := options.Find().
+				SetSort(bson.M{"name": 1}).
+				SetLimit(int64(queryWindow)).
+				SetProjection(bson.M{"name": 1, "avatarUrl": 1})
+			artistCursor, err := artistCollection.Find(ctx, searchRegex, findOpts)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar artistas"})
 				return
@@ -91,19 +112,25 @@ func GeneralSearch() gin.HandlerFunc {
 				return
 			}
 			for i := range artists {
+				avatarUrl, _ := artists[i]["avatarUrl"].(string)
 				results = append(results, bson.M{
 					"name":        artists[i]["name"],
 					"type":        "artist",
 					"id":          artists[i]["_id"],
 					"description": "Artista",
-					"imageUrl":    os.Getenv("SERVER_URL") + artists[i]["avatarUrl"].(string),
+					"imageUrl":    serverURL + avatarUrl,
 				})
 			}
 		}
 
 		if searchAlbum {
+			if count, err := albumCollection.CountDocuments(ctx, searchRegex); err == nil {
+				totalResults += count
+			}
 			albumPipeline := []bson.M{
 				{"$match": searchRegex},
+				{"$sort": bson.M{"name": 1}},
+				{"$limit": queryWindow},
 				{
 					"$lookup": bson.M{
 						"from":         "artists",
@@ -126,19 +153,45 @@ func GeneralSearch() gin.HandlerFunc {
 				return
 			}
 			for i := range albums {
+				artistName := ""
+				if artist, ok := albums[i]["artist"].(bson.M); ok {
+					artistName, _ = artist["name"].(string)
+				}
+				coverUrl, _ := albums[i]["albumCoverUrl"].(string)
 				results = append(results, bson.M{
 					"name":        albums[i]["name"],
 					"type":        "album",
 					"id":          albums[i]["_id"],
-					"description": "Álbum · " + albums[i]["artist"].(bson.M)["name"].(string),
-					"imageUrl":    os.Getenv("SERVER_URL") + albums[i]["albumCoverUrl"].(string),
+					"description": "Álbum · " + artistName,
+					"imageUrl":    serverURL + coverUrl,
 				})
 			}
 		}
 
 		if searchMusic {
+			if count, err := musicCollection.CountDocuments(ctx, searchRegex); err == nil {
+				totalResults += count
+			}
+			project := bson.M{
+				"_id":       1,
+				"url":       1,
+				"name":      1,
+				"artistId":  1,
+				"albumId":   1,
+				"genre":     1,
+				"coverUrl":  1,
+				"color":     1,
+				"createdAt": 1,
+				"updatedAt": 1,
+			}
+			if includeWaveform {
+				project["waveform"] = 1
+			}
 			musicPipeline := []bson.M{
 				{"$match": searchRegex},
+				{"$sort": bson.M{"name": 1}},
+				{"$limit": queryWindow},
+				{"$project": project},
 				{
 					"$lookup": bson.M{
 						"from":         "albums",
@@ -215,14 +268,16 @@ func GeneralSearch() gin.HandlerFunc {
 
 				musicData["url"] = os.Getenv("SERVER_URL") + musics[i]["url"].(string)
 
-				lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", musics[i]["_id"].(primitive.ObjectID).Hex())
+				if includeLyrics {
+					lyricsPath := fmt.Sprintf("./uploads/lyrics/%s.lrc", musics[i]["_id"].(primitive.ObjectID).Hex())
 
-				if _, err := os.Stat(lyricsPath); err == nil {
-					lyrics, err := parseLRC(lyricsPath)
-					if err != nil {
-						fmt.Println("Erro ao ler o arquivo LRC:", err)
-					} else {
-						musicData["lyrics"] = lyrics
+					if _, err := os.Stat(lyricsPath); err == nil {
+						lyrics, err := parseLRC(lyricsPath)
+						if err != nil {
+							fmt.Println("Erro ao ler o arquivo LRC:", err)
+						} else {
+							musicData["lyrics"] = lyrics
+						}
 					}
 				}
 
@@ -244,6 +299,35 @@ func GeneralSearch() gin.HandlerFunc {
 			return results[i]["name"].(string) < results[j]["name"].(string)
 		})
 
-		c.JSON(http.StatusOK, gin.H{"results": results})
+		if skip >= len(results) {
+			results = []bson.M{}
+		} else {
+			end := skip + limitInt
+			if end > len(results) {
+				end = len(results)
+			}
+			results = results[skip:end]
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"results": results,
+			"pagination": gin.H{
+				"page":    pageInt,
+				"limit":   limitInt,
+				"total":   totalResults,
+				"hasMore": int64(skip+len(results)) < totalResults,
+			},
+		})
 	}
+}
+
+func parsePositiveQueryInt(raw string, fallback, max int) int {
+	value, err := strconv.Atoi(raw)
+	if err != nil || value < 1 {
+		return fallback
+	}
+	if value > max {
+		return max
+	}
+	return value
 }

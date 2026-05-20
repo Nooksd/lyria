@@ -1,11 +1,14 @@
 package controllers
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +16,15 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
+
+type cachedImageFile struct {
+	data        []byte
+	modTime     time.Time
+	size        int64
+	contentType string
+}
+
+var imageFileCache sync.Map
 
 func UploadAvatar() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -171,6 +183,8 @@ func handleFileUpload(c *gin.Context, id string, subDir string, fileExtension st
 		return
 	}
 
+	imageFileCache.Delete(filePath)
+
 	c.JSON(http.StatusOK, gin.H{"message": "Arquivo enviado com sucesso!", "filePath": filePath})
 }
 
@@ -193,16 +207,52 @@ func getImage(c *gin.Context, subDir string) {
 		id = "default"
 	}
 
-	etag := fmt.Sprintf("%s-%d", id, fileInfo.ModTime().Unix())
+	cached, err := loadImageFile(filePath, fileInfo)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao ler imagem"})
+		return
+	}
 
-	if match := c.GetHeader("If-None-Match"); match == etag {
+	etag := fmt.Sprintf("\"%s-%d-%d\"", id, cached.modTime.Unix(), cached.size)
+
+	if match := c.GetHeader("If-None-Match"); strings.Contains(match, etag) {
 		c.Status(http.StatusNotModified)
 		return
 	}
 
 	c.Header("Cache-Control", cacheControlForSubDir(subDir))
 	c.Header("ETag", etag)
-	c.File(filePath)
+	c.Header("Content-Type", cached.contentType)
+	c.Header("X-Content-Type-Options", "nosniff")
+	http.ServeContent(c.Writer, c.Request, filepath.Base(filePath), cached.modTime, bytes.NewReader(cached.data))
+}
+
+func loadImageFile(filePath string, fileInfo os.FileInfo) (*cachedImageFile, error) {
+	if cached, ok := imageFileCache.Load(filePath); ok {
+		image := cached.(*cachedImageFile)
+		if image.modTime.Equal(fileInfo.ModTime()) && image.size == fileInfo.Size() {
+			return image, nil
+		}
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	contentType := http.DetectContentType(data)
+	if filepath.Ext(filePath) == ".png" {
+		contentType = "image/png"
+	}
+
+	image := &cachedImageFile{
+		data:        data,
+		modTime:     fileInfo.ModTime(),
+		size:        fileInfo.Size(),
+		contentType: contentType,
+	}
+	imageFileCache.Store(filePath, image)
+	return image, nil
 }
 
 func cacheControlForSubDir(subDir string) string {
@@ -210,10 +260,10 @@ func cacheControlForSubDir(subDir string) string {
 	case "cover", "music_cover":
 		return "public, max-age=31536000, immutable"
 	case "avatar", "banner":
-		return "public, max-age=604800"
+		return "public, max-age=604800, stale-while-revalidate=2592000"
 	case "playlist":
-		return "public, max-age=86400"
+		return "public, max-age=86400, stale-while-revalidate=604800"
 	default:
-		return "public, max-age=3600"
+		return "public, max-age=86400"
 	}
 }

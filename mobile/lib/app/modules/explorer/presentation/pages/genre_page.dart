@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/config/api_config.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
@@ -238,7 +239,8 @@ class _GenrePageState extends State<GenrePage> {
                         isRound: false,
                         onTap: () =>
                             musicCubit.setQueue(musics, index, null),
-                        onLongPress: () {},
+                        onLongPress: () =>
+                            showMusicOptionsSheet(context, musics[index]),
                         trailing: null,
                       ),
                     ),

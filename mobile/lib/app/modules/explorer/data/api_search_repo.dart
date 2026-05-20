@@ -13,7 +13,8 @@ class ApiSearchRepo implements SearchRepo {
 
   @override
   Future<List<Search>> search(String query) async {
-    final response = await http.get('/search?query=$query');
+    final encoded = Uri.encodeQueryComponent(query);
+    final response = await http.get('/search?query=$encoded&page=1&limit=20');
 
     if (response['status'] == 200) {
       final List<dynamic>? data = response['data']['results'];

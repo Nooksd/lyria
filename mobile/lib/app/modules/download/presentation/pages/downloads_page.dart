@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/data/api_download_repo.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
@@ -172,7 +173,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 isRound: false,
                                 onTap: () => musicCubit.setQueue(
                                     downloads, index, null),
-                                onLongPress: () {},
+                                onLongPress: () =>
+                                    showMusicOptionsSheet(context, music),
                                 trailing: IconButton(
                                   icon: const Icon(
                                     Icons.delete_outline,

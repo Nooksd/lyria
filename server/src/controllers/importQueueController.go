@@ -265,7 +265,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 	// 1. Authenticate with Spotify
 	q.addLog(jobID, "progress", "Autenticando no Spotify...")
-	token, err := getSpotifyToken()
+	token, err := getSpotifyTokenWithContext(ctx)
 	if err != nil {
 		q.addLog(jobID, "error", "Erro ao autenticar no Spotify: "+err.Error())
 		q.setStatus(jobID, "failed")
@@ -280,7 +280,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 	// 2. Fetch artist info
 	q.addLog(jobID, "progress", "Buscando dados do artista...")
-	spArtist, err := fetchSpotifyArtist(token, artistSpotifyId)
+	spArtist, err := fetchSpotifyArtist(ctx, token, artistSpotifyId)
 	if err != nil {
 		q.addLog(jobID, "error", "Erro ao buscar artista: "+err.Error())
 		q.setStatus(jobID, "failed")
@@ -295,7 +295,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 	// 3. Fetch all albums and tracks (metadata only)
 	q.addLog(jobID, "progress", "Buscando álbuns e faixas...")
-	spAlbums, err := fetchAllSpotifyAlbums(token, artistSpotifyId)
+	spAlbums, err := fetchAllSpotifyAlbums(ctx, token, artistSpotifyId)
 	if err != nil {
 		q.addLog(jobID, "error", "Erro ao buscar álbuns: "+err.Error())
 		q.setStatus(jobID, "failed")
@@ -305,7 +305,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 	var albums []importAlbum
 	totalTracks := 0
 	for _, spAlbum := range spAlbums {
-		tracks, err := fetchAllSpotifyTracks(token, spAlbum.ID)
+		tracks, err := fetchAllSpotifyTracks(ctx, token, spAlbum.ID)
 		if err != nil {
 			q.addLog(jobID, "progress", fmt.Sprintf("Aviso: não foi possível buscar faixas de '%s'", spAlbum.Name))
 			continue
@@ -825,6 +825,64 @@ func CancelImportJob() gin.HandlerFunc {
 
 		importQueue.Cancel(jobId)
 		c.JSON(http.StatusOK, gin.H{"message": "Cancelamento solicitado"})
+	}
+}
+
+func RetryImportJob() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		jobId := c.Param("jobId")
+		id, err := primitive.ObjectIDFromHex(jobId)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var job model.ImportJob
+		if err := importJobCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&job); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Job não encontrado"})
+			return
+		}
+
+		canRetry := job.Status == "failed" || job.Status == "cancelled" || (job.Status == "completed" && job.Failed > 0)
+		if !canRetry {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Apenas jobs com falha, cancelados ou concluídos com falhas podem ser reenfileirados"})
+			return
+		}
+
+		now := time.Now()
+		resetLog := model.ImportLog{
+			Type:    "progress",
+			Message: "Importação reenfileirada para continuar/tentar novamente.",
+			Time:    now,
+		}
+
+		_, err = importJobCollection.UpdateOne(ctx,
+			bson.M{"_id": id},
+			bson.M{
+				"$set": bson.M{
+					"status":      "queued",
+					"progress":    0,
+					"total":       0,
+					"albums":      0,
+					"musics":      0,
+					"failed":      0,
+					"failedItems": []model.ImportFailedItem{},
+					"updatedAt":   now,
+				},
+				"$unset": bson.M{"finishedAt": ""},
+				"$push":  bson.M{"logs": resetLog},
+			},
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao reenfileirar job: " + err.Error()})
+			return
+		}
+
+		importQueue.Enqueue(id)
+		c.JSON(http.StatusOK, gin.H{"message": "Importação reenfileirada"})
 	}
 }
 

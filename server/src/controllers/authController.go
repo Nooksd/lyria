@@ -28,9 +28,10 @@ func VerifyPassword(providedPassword string, storedHash string) error {
 func LoginUser() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var loginData struct {
-			Email        string `json:"email"`
-			Password     string `json:"password"`
-			KeepLoggedIn bool   `json:"keepConnection"`
+			Email          string `json:"email"`
+			Password       string `json:"password"`
+			KeepConnection bool   `json:"keepConnection"`
+			KeepLoggedIn   bool   `json:"keepLoggedIn"`
 		}
 
 		if err := c.ShouldBindJSON(&loginData); err != nil {
@@ -65,19 +66,19 @@ func LoginUser() gin.HandlerFunc {
 			Value:    accessToken,
 			Path:     "/",
 			Domain:   os.Getenv("DOMAIN"),
-			Expires:  time.Now().Add(24 * time.Hour),
+			Expires:  time.Now().Add(7 * 24 * time.Hour),
 			HttpOnly: true,
 			Secure:   os.Getenv("ENVIRONMENT") == "production",
 			SameSite: http.SameSiteNoneMode,
 		})
 
-		if loginData.KeepLoggedIn {
+		if loginData.KeepLoggedIn || loginData.KeepConnection {
 			http.SetCookie(c.Writer, &http.Cookie{
 				Name:     "refreshToken",
 				Value:    refreshToken,
 				Path:     "/",
 				Domain:   os.Getenv("DOMAIN"),
-				Expires:  time.Now().Add(7 * 24 * time.Hour),
+				Expires:  time.Now().Add(10 * 365 * 24 * time.Hour),
 				HttpOnly: true,
 				Secure:   os.Getenv("ENVIRONMENT") == "production",
 				SameSite: http.SameSiteNoneMode,
@@ -102,6 +103,9 @@ func RefreshToken() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		refreshToken := c.GetHeader("Authorization")
 		if refreshToken == "" {
+			refreshToken = c.GetHeader("Token")
+		}
+		if refreshToken == "" {
 			refreshToken, _ = c.Cookie("refreshToken")
 			if refreshToken == "" {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Token não fornecido"})
@@ -123,11 +127,18 @@ func RefreshToken() gin.HandlerFunc {
 			return
 		}
 
-		email := claims["Email"].(string)
-		name := claims["Name"].(string)
-		avatarUrl := claims["AvatarUrl"].(string)
-		userType := claims["UserType"].(string)
-		userId := claims["Uid"].(string)
+		email, _ := claims["Email"].(string)
+		name, _ := claims["Name"].(string)
+		avatarUrl, _ := claims["AvatarUrl"].(string)
+		userType, _ := claims["UserType"].(string)
+		userId, _ := claims["UserId"].(string)
+		if userId == "" {
+			userId, _ = claims["Uid"].(string)
+		}
+		if email == "" || userId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Token inválido"})
+			return
+		}
 
 		newAccessToken, _, err := helper.GenerateTokens(email, name, avatarUrl, userId, userType, false)
 		if err != nil {

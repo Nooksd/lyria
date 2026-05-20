@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/core/services/connectivity/connectivity_service.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_states.dart';
@@ -166,7 +167,12 @@ class _PlaylistControlState extends State<PlaylistControl> {
                                       widget.onPlaylistUpdated(updated);
                                     }
                                   },
-                            onLongPress: () {},
+                            onLongPress: alreadyAdded || search.music == null
+                                ? () {}
+                                : () => showMusicOptionsSheet(
+                                      context,
+                                      search.music!,
+                                    ),
                             trailing: alreadyAdded
                                 ? Icon(Icons.check,
                                     color: Theme.of(sheetCtx)

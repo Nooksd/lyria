@@ -215,6 +215,24 @@ export default function Imports() {
     }
   };
 
+  const canRetryJob = (job: ImportJob) =>
+    job.status === 'failed' || job.status === 'cancelled' || (job.status === 'completed' && job.failed > 0);
+
+  const retryJob = async (jobId: string, artistName?: string) => {
+    const name = artistName || 'esta importação';
+    if (!confirm(`Tentar novamente/continuar "${name}"?`)) return;
+    try {
+      await api.post(`/admin/import/jobs/${jobId}/retry`);
+      show(`"${name}" voltou para a fila`);
+      loadJobs();
+      if (selectedJob === jobId) {
+        openJob(jobId);
+      }
+    } catch (err: any) {
+      show(err.response?.data?.error || 'Erro ao tentar novamente', 'error');
+    }
+  };
+
   const closeDetail = () => {
     if (eventSourceRef.current) {
       eventSourceRef.current.abort();
@@ -338,8 +356,16 @@ export default function Imports() {
               <span style={{ fontSize: 18, fontWeight: 600 }}>{jobDetail.artistName || 'Importação'}</span>
               <span style={{ marginLeft: 12 }}>{statusBadge(jobDetail.status)}</span>
             </div>
-            {(jobDetail.status === 'queued' || jobDetail.status === 'running') && (
+            {(jobDetail.status === 'queued' || jobDetail.status === 'running' || canRetryJob(jobDetail)) && (
               <div style={{ display: 'flex', gap: 8 }}>
+                {canRetryJob(jobDetail) && (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => retryJob(selectedJob, jobDetail.artistName)}
+                  >
+                    {jobDetail.status === 'cancelled' ? 'Continuar' : 'Tentar novamente'}
+                  </button>
+                )}
                 {jobDetail.status === 'queued' && (
                   <button
                     className="btn btn-sm"
@@ -528,6 +554,16 @@ export default function Imports() {
                               onClick={() => forceStartJob(job._id, job.artistName)}
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+                            </button>
+                          )}
+                          {canRetryJob(job) && (
+                            <button
+                              className="btn-icon"
+                              title={job.status === 'cancelled' ? 'Continuar importação' : 'Tentar novamente'}
+                              style={{ color: 'var(--success)' }}
+                              onClick={() => retryJob(job._id, job.artistName)}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"/></svg>
                             </button>
                           )}
                           {(job.status === 'queued' || job.status === 'running') && (
