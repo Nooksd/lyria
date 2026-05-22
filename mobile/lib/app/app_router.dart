@@ -227,6 +227,12 @@ class AppRouter {
             ),
           ),
           GoRoute(
+            path: '/auth/ui/editPlaylist',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: AddPlaylist(playlist: state.extra as Playlist),
+            ),
+          ),
+          GoRoute(
             path: '/auth/ui/addArtist',
             pageBuilder: (context, state) => NoTransitionPage(
               child: AddArtist(),

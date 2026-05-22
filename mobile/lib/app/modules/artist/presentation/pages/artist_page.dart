@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/config/api_config.dart';
+import 'package:lyria/app/core/services/cache/favorites_cache.dart';
 import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
+import 'package:lyria/app/modules/favorites/domain/entities/favorite_artist.dart';
 import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
@@ -20,12 +22,14 @@ class ArtistPage extends StatefulWidget {
 class _ArtistPageState extends State<ArtistPage> {
   final MusicCubit musicCubit = getIt<MusicCubit>();
   final MyHttpClient http = getIt<MyHttpClient>();
+  final FavoritesCache favoritesCache = getIt<FavoritesCache>();
 
   Map<String, dynamic>? artist;
   List<Music> topMusics = [];
   List<Music> singles = [];
   List<Map<String, dynamic>> albums = [];
   bool isLoading = true;
+  bool isFavorite = false;
 
   @override
   void initState() {
@@ -51,10 +55,49 @@ class _ArtistPageState extends State<ArtistPage> {
               .toList();
           isLoading = false;
         });
+        await _loadFavoriteState();
       }
     } catch (e) {
       setState(() => isLoading = false);
     }
+  }
+
+  Future<void> _loadFavoriteState() async {
+    final favorites = await favoritesCache.fetchAndCacheFavoriteArtists();
+    if (!mounted) return;
+    setState(() {
+      isFavorite = favorites.any((item) => item.id == widget.artistId);
+    });
+  }
+
+  Future<void> _toggleFavoriteArtist() async {
+    if (artist == null) return;
+    final favorites = await favoritesCache.getCachedFavoriteArtists();
+    final updated = await favoritesCache.toggleArtistFavorite(
+      _currentFavoriteArtist(),
+      favorites,
+    );
+    if (!mounted) return;
+    setState(() {
+      isFavorite = updated.any((item) => item.id == widget.artistId);
+    });
+  }
+
+  FavoriteArtist _currentFavoriteArtist() {
+    return FavoriteArtist(
+      id: widget.artistId,
+      name: artist!['name'] as String? ?? '',
+      avatarUrl: ApiConfig.fixImageUrl(artist!['avatarUrl'] as String?),
+      bannerUrl: ApiConfig.fixImageUrl(artist!['bannerUrl'] as String?),
+      bio: artist!['bio'] as String? ?? '',
+      color: artist!['color'] as String? ?? '',
+      genres:
+          (artist!['genres'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      musicCount: topMusics.length + singles.length,
+      albumCount: albums.length,
+      spotifyPopularity: (artist!['spotifyPopularity'] as num?)?.toInt() ?? 0,
+      spotifyFollowers: (artist!['spotifyFollowers'] as num?)?.toInt() ?? 0,
+    );
   }
 
   Color _parseColor(String? hex) {
@@ -134,8 +177,7 @@ class _ArtistPageState extends State<ArtistPage> {
                           fadeInDuration: Duration.zero,
                           fadeOutDuration: Duration.zero,
                           placeholder: (_, __) => const SizedBox.shrink(),
-                          errorWidget: (_, __, ___) =>
-                              const SizedBox.shrink(),
+                          errorWidget: (_, __, ___) => const SizedBox.shrink(),
                         )
                       : null,
                 ),
@@ -146,6 +188,17 @@ class _ArtistPageState extends State<ArtistPage> {
                   child: IconButton(
                     icon: const Icon(Icons.arrow_back, color: Colors.white),
                     onPressed: () => context.pop(),
+                  ),
+                ),
+                Positioned(
+                  top: MediaQuery.of(context).padding.top + 8,
+                  right: 8,
+                  child: IconButton(
+                    icon: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: Colors.white,
+                    ),
+                    onPressed: _toggleFavoriteArtist,
                   ),
                 ),
                 // Avatar
@@ -168,10 +221,8 @@ class _ArtistPageState extends State<ArtistPage> {
                                 fit: BoxFit.cover,
                                 fadeInDuration: Duration.zero,
                                 fadeOutDuration: Duration.zero,
-                                placeholder: (_, __) => const Icon(
-                                    Icons.person,
-                                    size: 50,
-                                    color: Colors.white54),
+                                placeholder: (_, __) => const Icon(Icons.person,
+                                    size: 50, color: Colors.white54),
                                 errorWidget: (_, __, ___) => const Icon(
                                     Icons.person,
                                     size: 50,
@@ -204,8 +255,7 @@ class _ArtistPageState extends State<ArtistPage> {
               const SizedBox(height: 8),
               Center(
                 child: Padding(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: screenWidth * 0.1),
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.1),
                   child: Text(
                     bio,
                     textAlign: TextAlign.center,
@@ -230,8 +280,7 @@ class _ArtistPageState extends State<ArtistPage> {
                   spacing: 8,
                   runSpacing: 4,
                   alignment: WrapAlignment.center,
-                  children:
-                      (artist!['genres'] as List).map<Widget>((genre) {
+                  children: (artist!['genres'] as List).map<Widget>((genre) {
                     return Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 4),
@@ -257,8 +306,7 @@ class _ArtistPageState extends State<ArtistPage> {
             if (topMusics.isNotEmpty) ...[
               const SizedBox(height: 24),
               Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: const Text(
                   "Músicas populares",
                   style: TextStyle(
@@ -268,26 +316,18 @@ class _ArtistPageState extends State<ArtistPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              ...topMusics
-                  .take(5)
-                  .toList()
-                  .asMap()
-                  .entries
-                  .map((entry) {
+              ...topMusics.take(5).toList().asMap().entries.map((entry) {
                 final index = entry.key;
                 final music = entry.value;
                 return Padding(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: screenWidth * 0.05),
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                   child: MusicTile(
                     title: music.name,
                     subtitle: music.albumName,
                     image: music.coverUrl,
                     isRound: false,
-                    onTap: () =>
-                        musicCubit.setQueue(topMusics, index, null),
-                    onLongPress: () =>
-                        showMusicOptionsSheet(context, music),
+                    onTap: () => musicCubit.setQueue(topMusics, index, null),
+                    onLongPress: () => showMusicOptionsSheet(context, music),
                     trailing: null,
                   ),
                 );
@@ -298,8 +338,7 @@ class _ArtistPageState extends State<ArtistPage> {
             if (albums.isNotEmpty) ...[
               const SizedBox(height: 32),
               Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: const Text(
                   "Álbuns",
                   style: TextStyle(
@@ -317,29 +356,26 @@ class _ArtistPageState extends State<ArtistPage> {
                   itemCount: albums.length,
                   itemBuilder: (context, index) {
                     final album = albums[index];
-                    final coverUrl = ApiConfig.fixImageUrl(album['albumCoverUrl']);
+                    final coverUrl =
+                        ApiConfig.fixImageUrl(album['albumCoverUrl']);
                     final albumName = album['name'] ?? '';
                     final albumColorRaw = album['color'] ?? '';
                     final albumColor = _parseColor(albumColorRaw);
-                    final hasAlbumColor =
-                        albumColor != Colors.transparent;
+                    final hasAlbumColor = albumColor != Colors.transparent;
                     final placeholderColor =
                         hasAlbumColor ? albumColor : accentColor;
 
                     return GestureDetector(
                       onTap: () {
-                        context.push('/auth/ui/album',
-                            extra: album['_id']);
+                        context.push('/auth/ui/album', extra: album['_id']);
                       },
                       child: Padding(
                         padding: const EdgeInsets.only(right: 16),
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(12),
                               child: Container(
                                 width: 150,
                                 height: 150,
@@ -352,19 +388,13 @@ class _ArtistPageState extends State<ArtistPage> {
                                         fadeOutDuration: Duration.zero,
                                         placeholder: (_, __) =>
                                             const SizedBox.shrink(),
-                                        errorWidget:
-                                            (_, __, ___) =>
-                                                const Icon(
-                                                    Icons.album,
-                                                    color:
-                                                        Colors.white54,
-                                                    size: 40),
+                                        errorWidget: (_, __, ___) => const Icon(
+                                            Icons.album,
+                                            color: Colors.white54,
+                                            size: 40),
                                       )
-                                    : const Icon(
-                                        Icons.album,
-                                        color:
-                                            Colors.white54,
-                                        size: 40),
+                                    : const Icon(Icons.album,
+                                        color: Colors.white54, size: 40),
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -393,8 +423,7 @@ class _ArtistPageState extends State<ArtistPage> {
             if (singles.isNotEmpty) ...[
               const SizedBox(height: 32),
               Padding(
-                padding:
-                    EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                 child: const Text(
                   "Singles",
                   style: TextStyle(
@@ -404,24 +433,18 @@ class _ArtistPageState extends State<ArtistPage> {
                 ),
               ),
               const SizedBox(height: 12),
-              ...singles
-                  .asMap()
-                  .entries
-                  .map((entry) {
+              ...singles.asMap().entries.map((entry) {
                 final index = entry.key;
                 final music = entry.value;
                 return Padding(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: screenWidth * 0.05),
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
                   child: MusicTile(
                     title: music.name,
                     subtitle: music.artistName,
                     image: music.coverUrl,
                     isRound: false,
-                    onTap: () =>
-                        musicCubit.setQueue(singles, index, null),
-                    onLongPress: () =>
-                        showMusicOptionsSheet(context, music),
+                    onTap: () => musicCubit.setQueue(singles, index, null),
+                    onLongPress: () => showMusicOptionsSheet(context, music),
                     trailing: null,
                   ),
                 );

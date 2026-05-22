@@ -398,16 +398,19 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 		now := time.Now()
 		dbArtist := model.Artist{
-			ID:        artistOID,
-			Name:      spArtist.Name,
-			SpotifyID: spArtist.ID,
-			Genres:    spArtist.Genres,
-			AvatarUrl: "/image/avatar/" + artistOID.Hex(),
-			BannerUrl: "/image/banner/" + artistOID.Hex(),
-			Bio:       artistBio,
-			Color:     artistColor,
-			CreatedAt: now,
-			UpdatedAt: now,
+			ID:                artistOID,
+			Name:              spArtist.Name,
+			SpotifyID:         spArtist.ID,
+			SpotifyURL:        spotifyExternalURL(spArtist.ExternalURLs.Spotify, "artist", spArtist.ID),
+			SpotifyPopularity: spArtist.Popularity,
+			SpotifyFollowers:  spArtist.Followers.Total,
+			Genres:            spArtist.Genres,
+			AvatarUrl:         "/image/avatar/" + artistOID.Hex(),
+			BannerUrl:         "/image/banner/" + artistOID.Hex(),
+			Bio:               artistBio,
+			Color:             artistColor,
+			CreatedAt:         now,
+			UpdatedAt:         now,
 		}
 
 		insCtx, insCancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -430,9 +433,13 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 			}
 			uCtx, uCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			artistCollection.UpdateOne(uCtx, bson.M{"_id": artistOID}, bson.M{"$set": bson.M{
-				"genres":    spArtist.Genres,
-				"color":     artistColor,
-				"updatedAt": time.Now(),
+				"spotifyId":         spArtist.ID,
+				"spotifyUrl":        spotifyExternalURL(spArtist.ExternalURLs.Spotify, "artist", spArtist.ID),
+				"spotifyPopularity": spArtist.Popularity,
+				"spotifyFollowers":  spArtist.Followers.Total,
+				"genres":            spArtist.Genres,
+				"color":             artistColor,
+				"updatedAt":         time.Now(),
 			}})
 			uCancel()
 		}
@@ -443,7 +450,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 	// 5. Load existing data for deduplication
 	existingAlbumNames := make(map[string]primitive.ObjectID)
-	existingMusicNames := make(map[string]bool)
+	existingMusicNames := make(map[string]primitive.ObjectID)
 
 	deCtx, deCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if cursor, err := albumCollection.Find(deCtx, bson.M{"artistId": artistOID}); err == nil {
@@ -458,7 +465,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 		var existMusics []model.Music
 		if cursor.All(deCtx, &existMusics) == nil {
 			for _, m := range existMusics {
-				existingMusicNames[normalizeTrackName(m.Name)] = true
+				existingMusicNames[normalizeTrackName(m.Name)] = m.ID
 			}
 		}
 	}
@@ -489,6 +496,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 			if existingID, ok := existingAlbumNames[normalizedAlbumName]; ok {
 				// Album already exists
 				albumOID = existingID
+				updateAlbumSpotifyMetadata(ctx, existingID, album.spotify)
 			} else {
 				// Create new album
 				albumOID = primitive.NewObjectID()
@@ -509,6 +517,12 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 					ArtistID:      artistOID,
 					AlbumCoverUrl: "/image/cover/" + albumOID.Hex(),
 					Color:         albumColor,
+					SpotifyID:     album.spotify.ID,
+					SpotifyURL:    spotifyExternalURL(album.spotify.ExternalURLs.Spotify, "album", album.spotify.ID),
+					AlbumType:     album.spotify.AlbumType,
+					AlbumGroup:    album.spotify.AlbumGroup,
+					ReleaseDate:   album.spotify.ReleaseDate,
+					TotalTracks:   album.spotify.TotalTracks,
 					CreatedAt:     now,
 					UpdatedAt:     now,
 				}
@@ -537,7 +551,8 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 			processedTracks++
 
 			// Skip tracks that already exist
-			if existingMusicNames[normalizeTrackName(track.Name)] {
+			if existingMusicID, ok := existingMusicNames[normalizeTrackName(track.Name)]; ok {
+				updateMusicSpotifyMetadata(ctx, existingMusicID, track)
 				skippedTracks++
 				q.addLog(jobID, "progress", fmt.Sprintf("⏭ [%d/%d] Já existe: %s", processedTracks, totalTracks, track.Name))
 				q.updateProgress(jobID, processedTracks, totalTracks)
@@ -643,15 +658,22 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 			now := time.Now()
 			dbMusic := model.Music{
-				ID:        musicOID,
-				Url:       "/stream/" + musicOID.Hex(),
-				Name:      track.Name,
-				ArtistID:  artistOID,
-				Genre:     genre,
-				Waveform:  waveform,
-				Color:     musicColor,
-				CreatedAt: now,
-				UpdatedAt: now,
+				ID:                musicOID,
+				Url:               "/stream/" + musicOID.Hex(),
+				Name:              track.Name,
+				ArtistID:          artistOID,
+				Genre:             genre,
+				Waveform:          waveform,
+				Color:             musicColor,
+				SpotifyID:         track.ID,
+				SpotifyURL:        spotifyExternalURL(track.ExternalURLs.Spotify, "track", track.ID),
+				SpotifyPopularity: track.Popularity,
+				SpotifyDurationMs: track.DurationMs,
+				SpotifyTrackNo:    track.TrackNumber,
+				SpotifyDiscNo:     track.DiscNumber,
+				SpotifyExplicit:   track.Explicit,
+				CreatedAt:         now,
+				UpdatedAt:         now,
 			}
 
 			if !isSingle {
@@ -673,7 +695,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 			}
 
 			totalMusics++
-			existingMusicNames[normalizeTrackName(track.Name)] = true
+			existingMusicNames[normalizeTrackName(track.Name)] = musicOID
 
 			// Generate audio fingerprints for Shazam-like identification (temporarily disabled)
 			// go func(path string, id primitive.ObjectID, name string) {
@@ -711,6 +733,53 @@ func cancelled(ctx context.Context) bool {
 	default:
 		return false
 	}
+}
+
+func updateMusicSpotifyMetadata(ctx context.Context, musicID primitive.ObjectID, track spotifyTrack) {
+	if track.ID == "" {
+		return
+	}
+
+	update := bson.M{
+		"spotifyId":          track.ID,
+		"spotifyUrl":         spotifyExternalURL(track.ExternalURLs.Spotify, "track", track.ID),
+		"spotifyPopularity":  track.Popularity,
+		"spotifyDurationMs":  track.DurationMs,
+		"spotifyTrackNumber": track.TrackNumber,
+		"spotifyDiscNumber":  track.DiscNumber,
+		"spotifyExplicit":    track.Explicit,
+		"updatedAt":          time.Now(),
+	}
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if ctx != nil && ctx.Err() != nil {
+		return
+	}
+	musicCollection.UpdateOne(dbCtx, bson.M{"_id": musicID}, bson.M{"$set": update})
+}
+
+func updateAlbumSpotifyMetadata(ctx context.Context, albumID primitive.ObjectID, album spotifyAlbum) {
+	if album.ID == "" {
+		return
+	}
+
+	update := bson.M{
+		"spotifyId":   album.ID,
+		"spotifyUrl":  spotifyExternalURL(album.ExternalURLs.Spotify, "album", album.ID),
+		"albumType":   album.AlbumType,
+		"albumGroup":  album.AlbumGroup,
+		"releaseDate": album.ReleaseDate,
+		"totalTracks": album.TotalTracks,
+		"updatedAt":   time.Now(),
+	}
+
+	dbCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if ctx != nil && ctx.Err() != nil {
+		return
+	}
+	albumCollection.UpdateOne(dbCtx, bson.M{"_id": albumID}, bson.M{"$set": update})
 }
 
 // ===================== HTTP Handlers =====================

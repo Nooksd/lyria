@@ -137,9 +137,9 @@ func UpdatePlaylist() gin.HandlerFunc {
 		}
 
 		type RawUpdateData struct {
-			Musics   []string `json:"musics,omitempty"`
-			Name     string   `json:"name,omitempty"`
-			IsPublic *bool    `json:"isPublic,omitempty"`
+			Musics   *[]string `json:"musics,omitempty"`
+			Name     string    `json:"name,omitempty"`
+			IsPublic *bool     `json:"isPublic,omitempty"`
 		}
 
 		var rawData RawUpdateData
@@ -149,20 +149,22 @@ func UpdatePlaylist() gin.HandlerFunc {
 		}
 
 		var musicIDs []primitive.ObjectID
-		for _, idStr := range rawData.Musics {
-			id, err := primitive.ObjectIDFromHex(idStr)
-			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "ID de música inválido: " + idStr})
-				return
+		if rawData.Musics != nil {
+			for _, idStr := range *rawData.Musics {
+				id, err := primitive.ObjectIDFromHex(idStr)
+				if err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "ID de música inválido: " + idStr})
+					return
+				}
+				musicIDs = append(musicIDs, id)
 			}
-			musicIDs = append(musicIDs, id)
 		}
 
 		updateData := bson.M{
 			"updatedAt": time.Now(),
 		}
 
-		if len(musicIDs) > 0 {
+		if rawData.Musics != nil {
 			updateData["musics"] = musicIDs
 		}
 		if rawData.Name != "" {

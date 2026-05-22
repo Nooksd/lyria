@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/modules/download/data/api_download_repo.dart';
+import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
@@ -12,6 +15,9 @@ class StorageCachePage extends StatefulWidget {
 }
 
 class _StorageCachePageState extends State<StorageCachePage> {
+  final ApiDownloadRepo downloadRepo = getIt<ApiDownloadRepo>();
+  final DownloadCubit downloadCubit = getIt<DownloadCubit>();
+
   int _imageCacheBytes = 0;
   int _downloadedBytes = 0;
   bool _isLoading = true;
@@ -29,15 +35,7 @@ class _StorageCachePageState extends State<StorageCachePage> {
       final cacheDir = await getTemporaryDirectory();
       final imageCacheSize = await _dirSize(cacheDir);
 
-      // Downloaded music size
-      final docsDir = await getApplicationDocumentsDirectory();
-      int downloadedSize = 0;
-      final files = docsDir.listSync().whereType<File>();
-      for (final file in files) {
-        if (file.path.endsWith('.mp3')) {
-          downloadedSize += await file.length();
-        }
-      }
+      final downloadedSize = await downloadRepo.getDownloadedBytes();
 
       if (mounted) {
         setState(() {
@@ -54,7 +52,8 @@ class _StorageCachePageState extends State<StorageCachePage> {
   Future<int> _dirSize(Directory dir) async {
     int total = 0;
     try {
-      await for (final entity in dir.list(recursive: true, followLinks: false)) {
+      await for (final entity
+          in dir.list(recursive: true, followLinks: false)) {
         if (entity is File) {
           total += await entity.length();
         }
@@ -111,8 +110,8 @@ class _StorageCachePageState extends State<StorageCachePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Apagar downloads?'),
-        content:
-            const Text('Todas as músicas baixadas serão removidas do dispositivo.'),
+        content: const Text(
+            'Todas as músicas baixadas serão removidas do dispositivo.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -130,13 +129,7 @@ class _StorageCachePageState extends State<StorageCachePage> {
 
     setState(() => _isClearing = true);
     try {
-      final docsDir = await getApplicationDocumentsDirectory();
-      final files = docsDir.listSync().whereType<File>();
-      for (final file in files) {
-        if (file.path.endsWith('.mp3')) {
-          await file.delete();
-        }
-      }
+      await downloadCubit.clearDownloads();
       await _calculateSizes();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

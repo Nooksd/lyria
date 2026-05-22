@@ -37,6 +37,17 @@ class DownloadCubit extends Cubit<Map<String, DownloadStatus>> {
     emit({...state, musicId: DownloadStatus.notDownloaded});
   }
 
+  Future<void> clearDownloads() async {
+    await downloadRepo.clearDownloads();
+    final updated = Map<String, DownloadStatus>.from(state);
+    for (final id in updated.keys.toList()) {
+      if (updated[id] == DownloadStatus.downloaded) {
+        updated[id] = DownloadStatus.notDownloaded;
+      }
+    }
+    emit(updated);
+  }
+
   Future<void> loadPlaylistStatuses(List<String> musicIds) async {
     final Map<String, DownloadStatus> updates = {};
     for (final id in musicIds) {
@@ -47,8 +58,9 @@ class DownloadCubit extends Cubit<Map<String, DownloadStatus>> {
 
   PlaylistDownloadStatus getPlaylistStatus(List<String> musicIds) {
     if (musicIds.isEmpty) return PlaylistDownloadStatus.notDownloaded;
-    final statuses =
-        musicIds.map((id) => state[id] ?? DownloadStatus.notDownloaded).toList();
+    final statuses = musicIds
+        .map((id) => state[id] ?? DownloadStatus.notDownloaded)
+        .toList();
     if (statuses.any((s) => s == DownloadStatus.downloading)) {
       return PlaylistDownloadStatus.downloading;
     }

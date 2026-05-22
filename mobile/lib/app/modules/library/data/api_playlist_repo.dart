@@ -197,8 +197,7 @@ class ApiPlaylistRepo extends PlaylistRepo {
 
           // Keep local-only playlists
           final cachedPlaylists = await _getCachedPlaylists();
-          final localOnly =
-              cachedPlaylists.where((p) => p.isLocal).toList();
+          final localOnly = cachedPlaylists.where((p) => p.isLocal).toList();
 
           final merged = [...serverPlaylists, ...localOnly];
           await _savePlaylists(merged);
@@ -269,6 +268,13 @@ class ApiPlaylistRepo extends PlaylistRepo {
           timestamp: ops[idx].timestamp,
         );
         await _savePendingOps(ops);
+      } else {
+        await _addPendingOp(PendingPlaylistOp(
+          playlistId: playlistId,
+          type: 'update',
+          imagePath: imageCover.path,
+          timestamp: DateTime.now(),
+        ));
       }
       return true; // Will upload on sync
     }
@@ -315,8 +321,7 @@ class ApiPlaylistRepo extends PlaylistRepo {
     try {
       final list = jsonDecode(raw as String) as List;
       return list
-          .map((e) =>
-              PendingPlaylistOp.fromJson(e as Map<String, dynamic>))
+          .map((e) => PendingPlaylistOp.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (_) {
       return [];
@@ -334,8 +339,8 @@ class ApiPlaylistRepo extends PlaylistRepo {
     ops.removeWhere((o) => o.playlistId == op.playlistId && o.type == op.type);
     // If we're updating something that has a pending create, keep create
     if (op.type == 'update') {
-      final hasCreate = ops.any(
-          (o) => o.playlistId == op.playlistId && o.type == 'create');
+      final hasCreate =
+          ops.any((o) => o.playlistId == op.playlistId && o.type == 'create');
       if (hasCreate) {
         // Don't add separate update, the create will push latest data
         await _savePendingOps(ops);
@@ -344,8 +349,8 @@ class ApiPlaylistRepo extends PlaylistRepo {
     }
     // If deleting a playlist with pending create, remove all ops for it
     if (op.type == 'delete') {
-      final hadCreate = ops.any(
-          (o) => o.playlistId == op.playlistId && o.type == 'create');
+      final hadCreate =
+          ops.any((o) => o.playlistId == op.playlistId && o.type == 'create');
       ops.removeWhere((o) => o.playlistId == op.playlistId);
       if (hadCreate) {
         // Was only local, no need to delete on server
@@ -400,8 +405,7 @@ class ApiPlaylistRepo extends PlaylistRepo {
       if (response['status'] == 200) {
         final data = response["data"] as List<dynamic>;
         return data
-            .map<Playlist>(
-                (e) => Playlist.fromJson(e as Map<String, dynamic>))
+            .map<Playlist>((e) => Playlist.fromJson(e as Map<String, dynamic>))
             .toList();
       }
     } catch (_) {}
@@ -409,12 +413,12 @@ class ApiPlaylistRepo extends PlaylistRepo {
   }
 
   /// Push a local playlist create to the server
-  Future<Playlist?> pushCreate(Playlist localPlaylist, String? imagePath) async {
+  Future<Playlist?> pushCreate(
+      Playlist localPlaylist, String? imagePath) async {
     try {
       final playlistData =
           jsonEncode({"name": localPlaylist.name, "musics": []});
-      final response =
-          await http.post("/playlist/create", data: playlistData);
+      final response = await http.post("/playlist/create", data: playlistData);
 
       if (response['status'] == 201) {
         final data = response["data"]["playlist"];
@@ -512,8 +516,7 @@ class ApiPlaylistRepo extends PlaylistRepo {
     try {
       final List<dynamic> jsonList = jsonDecode(raw as String);
       return jsonList
-          .map<Playlist>(
-              (e) => Playlist.fromJson(e as Map<String, dynamic>))
+          .map<Playlist>((e) => Playlist.fromJson(e as Map<String, dynamic>))
           .toList();
     } catch (_) {
       return [];

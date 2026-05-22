@@ -1,16 +1,20 @@
 import 'dart:io';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
+import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 import 'package:lyria/app/modules/ui/includes/custom_appbar.dart';
 
 class AddPlaylist extends StatefulWidget {
-  const AddPlaylist({super.key});
+  final Playlist? playlist;
+
+  const AddPlaylist({super.key, this.playlist});
 
   @override
   State<AddPlaylist> createState() => _AddPlaylistState();
@@ -21,6 +25,21 @@ class _AddPlaylistState extends State<AddPlaylist> {
   final TextEditingController _playlistName = TextEditingController();
   File? selectedImage;
   bool isLoading = false;
+  bool get isEditing => widget.playlist != null;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.playlist != null) {
+      _playlistName.text = widget.playlist!.name;
+    }
+  }
+
+  @override
+  void dispose() {
+    _playlistName.dispose();
+    super.dispose();
+  }
 
   Future<void> pickImage() async {
     final picker = ImagePicker();
@@ -33,21 +52,36 @@ class _AddPlaylistState extends State<AddPlaylist> {
     }
   }
 
-  Future<void> _createPlaylist() async {
+  Future<void> _submitPlaylist() async {
+    final name = _playlistName.text.trim();
+    if (name.isEmpty) return;
+
     setState(() {
       isLoading = true;
     });
 
-    await cubit.createPlaylist(_playlistName.text, selectedImage);
+    Playlist? savedPlaylist;
+    if (isEditing) {
+      savedPlaylist = await cubit.updatePlaylistDetails(
+          widget.playlist!, name, selectedImage);
+    } else {
+      await cubit.createPlaylist(name, selectedImage);
+    }
 
     if (mounted) {
-      context.pop();
+      context.pop(savedPlaylist);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final coverProvider = selectedImage != null
+        ? FileImage(selectedImage!) as ImageProvider<Object>
+        : widget.playlist?.playlistCoverUrl.isNotEmpty == true
+            ? CachedNetworkImageProvider(widget.playlist!.playlistCoverUrl)
+                as ImageProvider<Object>
+            : const AssetImage('assets/images/default.png');
 
     return Scaffold(
       appBar: CustomAppBar(),
@@ -87,11 +121,7 @@ class _AddPlaylistState extends State<AddPlaylist> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(25),
                           image: DecorationImage(
-                            image: (selectedImage != null
-                                    ? FileImage(selectedImage!)
-                                    : const AssetImage(
-                                        'assets/images/default.png'))
-                                as ImageProvider<Object>,
+                            image: coverProvider,
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -141,7 +171,7 @@ class _AddPlaylistState extends State<AddPlaylist> {
                           ),
                         ),
                         GestureDetector(
-                          onTap: _createPlaylist,
+                          onTap: _submitPlaylist,
                           child: Container(
                             width: 130,
                             height: 55,
@@ -151,7 +181,7 @@ class _AddPlaylistState extends State<AddPlaylist> {
                             ),
                             child: Center(
                               child: Text(
-                                "Criar",
+                                isEditing ? "Salvar" : "Criar",
                                 style: TextStyle(
                                   color:
                                       Theme.of(context).colorScheme.onPrimary,

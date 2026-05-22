@@ -7,14 +7,17 @@ import (
 )
 
 type Artist struct {
-	ID        primitive.ObjectID `json:"_id" bson:"_id,omitempty"`
-	Name      string             `json:"name" bson:"name" validate:"required"`
-	SpotifyID string             `json:"spotifyId,omitempty" bson:"spotifyId,omitempty"`
-	Genres    []string           `json:"genres" bson:"genres"`
-	AvatarUrl string             `json:"avatarUrl" bson:"avatarUrl" validate:"required"`
-	BannerUrl string             `json:"bannerUrl" bson:"bannerUrl"`
-	Bio       string             `json:"bio" bson:"bio"`
-	Color     string             `json:"color" bson:"color"`
-	CreatedAt time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
-	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
+	ID                primitive.ObjectID `json:"_id" bson:"_id,omitempty"`
+	Name              string             `json:"name" bson:"name" validate:"required"`
+	SpotifyID         string             `json:"spotifyId,omitempty" bson:"spotifyId,omitempty"`
+	SpotifyURL        string             `json:"spotifyUrl,omitempty" bson:"spotifyUrl,omitempty"`
+	SpotifyPopularity int                `json:"spotifyPopularity,omitempty" bson:"spotifyPopularity,omitempty"`
+	SpotifyFollowers  int                `json:"spotifyFollowers,omitempty" bson:"spotifyFollowers,omitempty"`
+	Genres            []string           `json:"genres" bson:"genres"`
+	AvatarUrl         string             `json:"avatarUrl" bson:"avatarUrl" validate:"required"`
+	BannerUrl         string             `json:"bannerUrl" bson:"bannerUrl"`
+	Bio               string             `json:"bio" bson:"bio"`
+	Color             string             `json:"color" bson:"color"`
+	CreatedAt         time.Time          `json:"createdAt" bson:"createdAt" validate:"required"`
+	UpdatedAt         time.Time          `json:"updatedAt" bson:"updatedAt" validate:"required"`
 }

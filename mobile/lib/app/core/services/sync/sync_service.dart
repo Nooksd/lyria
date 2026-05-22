@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:lyria/app/app_router.dart';
@@ -41,6 +42,7 @@ class SyncService {
 
     try {
       await _syncFavorites();
+      await favoritesCache.pushPendingAlbumAndArtistToggles();
     } catch (e) {
       debugPrint('[Sync] Favorites sync error: $e');
     }
@@ -116,8 +118,7 @@ class SyncService {
     if (serverPlaylists == null) return;
 
     // Process creates first
-    final creates =
-        pendingOps.where((o) => o.type == 'create').toList();
+    final creates = pendingOps.where((o) => o.type == 'create').toList();
     for (final op in creates) {
       final cached = playlistCubit.playlists
           .where((p) => p.id == op.playlistId)
@@ -133,23 +134,20 @@ class SyncService {
     }
 
     // Process deletes
-    final deletes =
-        pendingOps.where((o) => o.type == 'delete').toList();
+    final deletes = pendingOps.where((o) => o.type == 'delete').toList();
     for (final op in deletes) {
       await playlistRepo.pushDelete(op.playlistId);
     }
 
     // Process updates — check for conflicts
-    final updates =
-        pendingOps.where((o) => o.type == 'update').toList();
+    final updates = pendingOps.where((o) => o.type == 'update').toList();
     if (updates.isNotEmpty) {
       final snapshot = await playlistRepo.getServerSnapshot();
 
       bool hasConflict = false;
       for (final op in updates) {
-        final serverVersion = serverPlaylists
-            .where((p) => p.id == op.playlistId)
-            .firstOrNull;
+        final serverVersion =
+            serverPlaylists.where((p) => p.id == op.playlistId).firstOrNull;
         final snapshotVersion =
             snapshot.where((p) => p.id == op.playlistId).firstOrNull;
 
@@ -181,7 +179,13 @@ class SyncService {
                 .where((p) => p.id == op.playlistId)
                 .firstOrNull;
             if (localVersion != null) {
-              await playlistRepo.pushUpdate(localVersion);
+              final pushed = await playlistRepo.pushUpdate(localVersion);
+              if (pushed && op.imagePath != null) {
+                await playlistRepo.uploadPlaylistCover(
+                  localVersion.id,
+                  File(op.imagePath!),
+                );
+              }
             }
           }
         } else {
@@ -194,7 +198,13 @@ class SyncService {
               .where((p) => p.id == op.playlistId)
               .firstOrNull;
           if (localVersion != null) {
-            await playlistRepo.pushUpdate(localVersion);
+            final pushed = await playlistRepo.pushUpdate(localVersion);
+            if (pushed && op.imagePath != null) {
+              await playlistRepo.uploadPlaylistCover(
+                localVersion.id,
+                File(op.imagePath!),
+              );
+            }
           }
         }
       }

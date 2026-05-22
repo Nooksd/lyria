@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
+import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/bottom_sheet_options/page/custom_bottom_modals.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 
@@ -19,7 +21,12 @@ class MusicModal extends CustomModal {
   }
 
   Future<void> _onShare() async {}
-  Future<void> _addToPlaylist() async {}
+  Future<void> _addToPlaylist(BuildContext context) async {
+    if (search.music != null) {
+      final rootContext = AppRouter.navigatorKey.currentContext ?? context;
+      showAddToPlaylistSheet(rootContext, search.music!);
+    }
+  }
 
   @override
   Widget buildContent(BuildContext context) {
@@ -76,7 +83,7 @@ class MusicModal extends CustomModal {
                   title: const Text('Adicionar à playlist'),
                   onTap: () {
                     Navigator.pop(context);
-                    _addToPlaylist();
+                    _addToPlaylist(context);
                   },
                 ),
                 ListTile(

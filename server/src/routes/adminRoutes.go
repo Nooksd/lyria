@@ -76,6 +76,8 @@ func AdminRoutes(router *gin.Engine) {
 
 		// Artist requests
 		adminProtected.GET("/artist-requests", controller.ListArtistRequests())
+		adminProtected.GET("/artist-requests/autoaccept", controller.GetArtistRequestAutoAcceptStatus())
+		adminProtected.POST("/artist-requests/autoaccept", controller.ToggleArtistRequestAutoAccept())
 		adminProtected.POST("/artist-requests/:id/approve", controller.ApproveArtistRequest())
 		adminProtected.POST("/artist-requests/:id/reject", controller.RejectArtistRequest())
 

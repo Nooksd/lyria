@@ -15,6 +15,8 @@ type User struct {
 	Password           string               `json:"password" bson:"password" validate:"required"`
 	UserType           string               `bson:"userType" json:"userType" validate:"required"`
 	Favorites          []primitive.ObjectID `bson:"favorites" json:"favorites"`
+	FavoriteAlbums     []primitive.ObjectID `bson:"favoriteAlbums" json:"favoriteAlbums"`
+	FavoriteArtists    []primitive.ObjectID `bson:"favoriteArtists" json:"favoriteArtists"`
 	EmailVerified      bool                 `bson:"emailVerified" json:"emailVerified"`
 	VerificationCode   string               `bson:"verificationCode,omitempty" json:"-"`
 	VerificationExpiry time.Time            `bson:"verificationExpiry,omitempty" json:"-"`

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -197,4 +198,42 @@ func GetOneUser() gin.HandlerFunc {
 		c.JSON(http.StatusOK, user)
 	}
 
+}
+
+func GetCurrentUser() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userClaims, exists := c.Get("user")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
+			return
+		}
+
+		claims, ok := userClaims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
+			return
+		}
+
+		userId, _ := claims["UserId"].(string)
+		if userId == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var user model.User
+		err := userCollection.FindOne(ctx, bson.M{"uid": userId}).Decode(&user)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "usuário não encontrado", "erro": err.Error()})
+			return
+		}
+
+		user.Password = ""
+		user.Email = ""
+		user.AvatarUrl = os.Getenv("SERVER_URL") + user.AvatarUrl
+
+		c.JSON(http.StatusOK, user)
+	}
 }

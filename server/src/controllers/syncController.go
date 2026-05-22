@@ -117,6 +117,15 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 	}
 
 	// 3. Update artist profile photo + genres
+	updateArtistFields := bson.M{
+		"spotifyId":         spArtist.ID,
+		"spotifyUrl":        spotifyExternalURL(spArtist.ExternalURLs.Spotify, "artist", spArtist.ID),
+		"spotifyPopularity": spArtist.Popularity,
+		"spotifyFollowers":  spArtist.Followers.Total,
+		"genres":            spArtist.Genres,
+		"updatedAt":         time.Now(),
+	}
+
 	if len(spArtist.Images) > 0 {
 		avatarPath := filepath.Join("uploads", "image", "avatar", artist.ID.Hex()+".png")
 		if err := downloadAndSaveImage(spArtist.Images[0].URL, avatarPath); err == nil {
@@ -127,15 +136,13 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 				newColor = col
 			}
 
-			uCtx, uCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			artistCollection.UpdateOne(uCtx, bson.M{"_id": artist.ID}, bson.M{"$set": bson.M{
-				"genres":    spArtist.Genres,
-				"color":     newColor,
-				"updatedAt": time.Now(),
-			}})
-			uCancel()
+			updateArtistFields["color"] = newColor
 		}
 	}
+
+	uCtx, uCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	artistCollection.UpdateOne(uCtx, bson.M{"_id": artist.ID}, bson.M{"$set": updateArtistFields})
+	uCancel()
 
 	// 4. Fetch all albums from Spotify
 	spAlbums, err := fetchAllSpotifyAlbums(ctx, token, artist.SpotifyID)
@@ -158,13 +165,13 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 		}
 	}
 
-	existingMusicNames := make(map[string]bool)
+	existingMusicNames := make(map[string]primitive.ObjectID)
 	mCursor, err := musicCollection.Find(dbCtx, bson.M{"artistId": artist.ID})
 	if err == nil {
 		var musics []model.Music
 		if mCursor.All(dbCtx, &musics) == nil {
 			for _, m := range musics {
-				existingMusicNames[normalizeTrackName(m.Name)] = true
+				existingMusicNames[normalizeTrackName(m.Name)] = m.ID
 			}
 		}
 	}
@@ -190,7 +197,9 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 		// Check which tracks are new
 		var newTracks []spotifyTrack
 		for _, t := range tracks {
-			if !existingMusicNames[normalizeTrackName(t.Name)] {
+			if existingMusicID, ok := existingMusicNames[normalizeTrackName(t.Name)]; ok {
+				updateMusicSpotifyMetadata(ctx, existingMusicID, t)
+			} else {
 				newTracks = append(newTracks, t)
 			}
 		}
@@ -207,6 +216,7 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 			normalizedAlbumName := normalizeTrackName(spAlbum.Name)
 			if existingID, ok := existingAlbumNames[normalizedAlbumName]; ok {
 				albumOID = existingID
+				updateAlbumSpotifyMetadata(ctx, existingID, spAlbum)
 			} else {
 				// Create new album
 				albumOID = primitive.NewObjectID()
@@ -227,6 +237,12 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 					ArtistID:      artist.ID,
 					AlbumCoverUrl: "/image/cover/" + albumOID.Hex(),
 					Color:         albumColor,
+					SpotifyID:     spAlbum.ID,
+					SpotifyURL:    spotifyExternalURL(spAlbum.ExternalURLs.Spotify, "album", spAlbum.ID),
+					AlbumType:     spAlbum.AlbumType,
+					AlbumGroup:    spAlbum.AlbumGroup,
+					ReleaseDate:   spAlbum.ReleaseDate,
+					TotalTracks:   spAlbum.TotalTracks,
 					CreatedAt:     now,
 					UpdatedAt:     now,
 				}
@@ -324,15 +340,22 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 
 			now := time.Now()
 			dbMusic := model.Music{
-				ID:        musicOID,
-				Url:       "/stream/" + musicOID.Hex(),
-				Name:      track.Name,
-				ArtistID:  artist.ID,
-				Genre:     genre,
-				Waveform:  waveform,
-				Color:     musicColor,
-				CreatedAt: now,
-				UpdatedAt: now,
+				ID:                musicOID,
+				Url:               "/stream/" + musicOID.Hex(),
+				Name:              track.Name,
+				ArtistID:          artist.ID,
+				Genre:             genre,
+				Waveform:          waveform,
+				Color:             musicColor,
+				SpotifyID:         track.ID,
+				SpotifyURL:        spotifyExternalURL(track.ExternalURLs.Spotify, "track", track.ID),
+				SpotifyPopularity: track.Popularity,
+				SpotifyDurationMs: track.DurationMs,
+				SpotifyTrackNo:    track.TrackNumber,
+				SpotifyDiscNo:     track.DiscNumber,
+				SpotifyExplicit:   track.Explicit,
+				CreatedAt:         now,
+				UpdatedAt:         now,
 			}
 
 			if !isSingle {
@@ -351,7 +374,7 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 			}
 
 			result.NewMusics++
-			existingMusicNames[normalizeTrackName(track.Name)] = true
+			existingMusicNames[normalizeTrackName(track.Name)] = musicOID
 
 			// Try to fetch lyrics
 			lrcPath := filepath.Join("uploads", "lyrics", musicOID.Hex()+".lrc")

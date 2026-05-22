@@ -34,6 +34,10 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
     playlistCubit.deletePlaylist(id);
   }
 
+  void _onEdit(Playlist playlist) {
+    context.push('/auth/ui/editPlaylist', extra: playlist);
+  }
+
   void _onShare(Playlist playlist) async {
     final link = 'lyria://playlist/${playlist.id}';
     await Clipboard.setData(ClipboardData(text: link));
@@ -68,6 +72,14 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
               child: Column(
                 children: [
                   const SizedBox(height: 20),
+                  ListTile(
+                    leading: const Icon(Icons.edit_outlined),
+                    title: const Text('Editar'),
+                    onTap: () {
+                      Navigator.pop(context);
+                      _onEdit(playlist);
+                    },
+                  ),
                   ListTile(
                     leading: const Icon(CustomIcons.playlist_delete),
                     title: const Text('Deletar Playlist'),
@@ -110,154 +122,151 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
           playlists = state.playlists;
         }
 
-          return RefreshIndicator(
-            color: Theme.of(context).colorScheme.onPrimary,
-            backgroundColor: Theme.of(context).colorScheme.primary,
-            onRefresh: () async {
-              await playlistCubit.getPlaylists(true);
-            },
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Biblioteca',
-                    style: TextStyle(fontSize: 25),
+        return RefreshIndicator(
+          color: Theme.of(context).colorScheme.onPrimary,
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          onRefresh: () async {
+            await playlistCubit.getPlaylists(true);
+          },
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Biblioteca',
+                  style: TextStyle(fontSize: 25),
+                ),
+                const SizedBox(height: 20),
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: playlists.length + 1,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: spacing,
+                    crossAxisSpacing: spacing,
+                    childAspectRatio: 0.7,
                   ),
-                  const SizedBox(height: 20),
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: playlists.length + 1,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: spacing,
-                      crossAxisSpacing: spacing,
-                      childAspectRatio: 0.7,
-                    ),
-                    itemBuilder: (context, index) {
-                      if (index < playlists.length) {
-                        final playlist = playlists[index];
-                        return SizedBox(
-                          width: itemWidth,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              GestureDetector(
-                                onTap: () => _openPlaylist(playlist),
-                                onLongPress: () =>
-                                    _showBottomSheet(context, playlist),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(10),
-                                  child: SizedBox(
-                                    width: itemWidth,
-                                    height: itemWidth,
-                                    child: playlist.playlistCoverUrl.isNotEmpty
-                                        ? CachedNetworkImage(
-                                            imageUrl:
-                                                '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
-                                            cacheKey: playlist.playlistCoverUrl,
-                                            fit: BoxFit.cover,
-                                            fadeInDuration: Duration.zero,
-                                            fadeOutDuration: Duration.zero,
-                                            placeholder: (_, __) => Container(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                            ),
-                                            errorWidget: (_, __, ___) =>
-                                                Container(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              child: const Icon(
-                                                  CustomIcons.list,
-                                                  color: Colors.white54),
-                                            ),
-                                          )
-                                        : Container(
+                  itemBuilder: (context, index) {
+                    if (index < playlists.length) {
+                      final playlist = playlists[index];
+                      return SizedBox(
+                        width: itemWidth,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            GestureDetector(
+                              onTap: () => _openPlaylist(playlist),
+                              onLongPress: () =>
+                                  _showBottomSheet(context, playlist),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: SizedBox(
+                                  width: itemWidth,
+                                  height: itemWidth,
+                                  child: playlist.playlistCoverUrl.isNotEmpty
+                                      ? CachedNetworkImage(
+                                          imageUrl:
+                                              '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
+                                          cacheKey: playlist.playlistCoverUrl,
+                                          fit: BoxFit.cover,
+                                          fadeInDuration: Duration.zero,
+                                          fadeOutDuration: Duration.zero,
+                                          placeholder: (_, __) => Container(
                                             color: Theme.of(context)
                                                 .colorScheme
                                                 .primary,
-                                            child: const Icon(
-                                                CustomIcons.list,
+                                          ),
+                                          errorWidget: (_, __, ___) =>
+                                              Container(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            child: const Icon(CustomIcons.list,
                                                 color: Colors.white54),
                                           ),
-                                  ),
+                                        )
+                                      : Container(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                          child: const Icon(CustomIcons.list,
+                                              color: Colors.white54),
+                                        ),
                                 ),
                               ),
-                              const SizedBox(height: 5),
-                              SizedBox(
-                                width: itemWidth,
-                                child: Text(
-                                  playlist.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
-                                ),
-                              ),
-                              Text(
-                                '${playlist.totalMusics} Músicas',
+                            ),
+                            const SizedBox(height: 5),
+                            SizedBox(
+                              width: itemWidth,
+                              child: Text(
+                                playlist.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 14,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface
-                                      .withValues(alpha: 0.6),
+                                  fontSize: 16,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
-                            ],
-                          ),
-                        );
-                      } else {
-                        // Botão "Adicionar Playlist"
-                        return GestureDetector(
-                          onTap: () => context.push('/auth/ui/addPlaylist'),
-                          child: Column(
-                            children: [
-                              CustomContainer(
-                                width: itemWidth,
-                                height: itemWidth,
-                                borderRadius: 10,
-                                child: Center(
-                                  child: Icon(
-                                    CustomIcons.plus_thick,
-                                    size: 30,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
+                            ),
+                            Text(
+                              '${playlist.totalMusics} Músicas',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.6),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    } else {
+                      // Botão "Adicionar Playlist"
+                      return GestureDetector(
+                        onTap: () => context.push('/auth/ui/addPlaylist'),
+                        child: Column(
+                          children: [
+                            CustomContainer(
+                              width: itemWidth,
+                              height: itemWidth,
+                              borderRadius: 10,
+                              child: Center(
+                                child: Icon(
+                                  CustomIcons.plus_thick,
+                                  size: 30,
+                                  color: Theme.of(context).colorScheme.primary,
                                 ),
                               ),
-                              const SizedBox(height: 5),
-                              SizedBox(
-                                width: itemWidth,
-                                child: Text(
-                                  "Adicionar Playlist",
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    color:
-                                        Theme.of(context).colorScheme.onSurface,
-                                  ),
+                            ),
+                            const SizedBox(height: 5),
+                            SizedBox(
+                              width: itemWidth,
+                              child: Text(
+                                "Adicionar Playlist",
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
-                            ],
-                          ),
-                        );
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 300),
-                ],
-              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                  },
+                ),
+                const SizedBox(height: 300),
+              ],
             ),
-          );
+          ),
+        );
       },
     );
   }

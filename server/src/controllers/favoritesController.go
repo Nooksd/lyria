@@ -14,6 +14,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 func ToggleFavorite() gin.HandlerFunc {
@@ -210,24 +211,291 @@ func GetFavorites() gin.HandlerFunc {
 			}
 
 			enriched = append(enriched, gin.H{
-				"_id":        m.ID,
-				"url":        serverURL + m.Url,
-				"name":       m.Name,
-				"artistId":   m.ArtistID,
-				"artistName": artistName,
-				"albumId":    m.AlbumID,
-				"albumName":  albumName,
-				"genre":      m.Genre,
-				"coverUrl":   coverUrl,
-				"color":      color,
-				"waveform":   m.Waveform,
-				"lyrics":     lyrics,
-				"createdAt":  m.CreatedAt,
-				"updatedAt":  m.UpdatedAt,
+				"_id":                m.ID,
+				"url":                serverURL + m.Url,
+				"name":               m.Name,
+				"artistId":           m.ArtistID,
+				"artistName":         artistName,
+				"albumId":            m.AlbumID,
+				"albumName":          albumName,
+				"genre":              m.Genre,
+				"coverUrl":           coverUrl,
+				"color":              color,
+				"spotifyId":          m.SpotifyID,
+				"spotifyUrl":         m.SpotifyURL,
+				"spotifyPopularity":  m.SpotifyPopularity,
+				"spotifyDurationMs":  m.SpotifyDurationMs,
+				"spotifyTrackNumber": m.SpotifyTrackNo,
+				"spotifyDiscNumber":  m.SpotifyDiscNo,
+				"spotifyExplicit":    m.SpotifyExplicit,
+				"waveform":           m.Waveform,
+				"lyrics":             lyrics,
+				"createdAt":          m.CreatedAt,
+				"updatedAt":          m.UpdatedAt,
 			})
 		}
 
 		c.JSON(http.StatusOK, gin.H{"favorites": enriched})
+	}
+}
+
+func ToggleFavoriteAlbum() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		toggleFavoriteObject(c, "albumId", "favoriteAlbums", albumCollection)
+	}
+}
+
+func ToggleFavoriteArtist() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		toggleFavoriteObject(c, "artistId", "favoriteArtists", artistCollection)
+	}
+}
+
+func toggleFavoriteObject(c *gin.Context, paramName, fieldName string, targetCollection *mongo.Collection) {
+	targetID := c.Param(paramName)
+	targetObjectID, err := primitive.ObjectIDFromHex(targetID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID inválido"})
+		return
+	}
+
+	userClaims, exists := c.Get("user")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
+		return
+	}
+
+	claims, ok := userClaims.(jwt.MapClaims)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
+		return
+	}
+
+	userId := claims["UserId"].(string)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	count, err := targetCollection.CountDocuments(ctx, bson.M{"_id": targetObjectID})
+	if err != nil || count == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Item não encontrado"})
+		return
+	}
+
+	var user bson.M
+	if err := userCollection.FindOne(ctx, bson.M{"uid": userId}).Decode(&user); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+		return
+	}
+
+	isFavorite := false
+	if values, ok := user[fieldName].(primitive.A); ok {
+		for _, value := range values {
+			if oid, ok := value.(primitive.ObjectID); ok && oid == targetObjectID {
+				isFavorite = true
+				break
+			}
+		}
+	}
+
+	var update bson.M
+	if isFavorite {
+		update = bson.M{"$pull": bson.M{fieldName: targetObjectID}, "$set": bson.M{"updatedAt": time.Now()}}
+	} else {
+		update = bson.M{"$addToSet": bson.M{fieldName: targetObjectID}, "$set": bson.M{"updatedAt": time.Now()}}
+	}
+
+	_, err = userCollection.UpdateOne(ctx, bson.M{"uid": userId}, update)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar favoritos"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Favorito atualizado",
+		"isFavorite": !isFavorite,
+	})
+}
+
+func GetFavoriteAlbums() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userClaims, exists := c.Get("user")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
+			return
+		}
+
+		claims, ok := userClaims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
+			return
+		}
+
+		userId := claims["UserId"].(string)
+		serverURL := os.Getenv("SERVER_URL")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var user struct {
+			FavoriteAlbums []primitive.ObjectID `bson:"favoriteAlbums"`
+		}
+		if err := userCollection.FindOne(ctx, bson.M{"uid": userId}).Decode(&user); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+			return
+		}
+
+		if len(user.FavoriteAlbums) == 0 {
+			c.JSON(http.StatusOK, gin.H{"albums": []gin.H{}})
+			return
+		}
+
+		cursor, err := albumCollection.Find(ctx, bson.M{"_id": bson.M{"$in": user.FavoriteAlbums}})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar álbuns"})
+			return
+		}
+
+		var albums []model.Album
+		if err := cursor.All(ctx, &albums); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar álbuns"})
+			return
+		}
+
+		artistIDs := make([]primitive.ObjectID, 0, len(albums))
+		for _, album := range albums {
+			if !album.ArtistID.IsZero() {
+				artistIDs = append(artistIDs, album.ArtistID)
+			}
+		}
+
+		artistMap := make(map[primitive.ObjectID]model.Artist)
+		if len(artistIDs) > 0 {
+			artistCursor, err := artistCollection.Find(ctx, bson.M{"_id": bson.M{"$in": artistIDs}})
+			if err == nil {
+				var artists []model.Artist
+				if artistCursor.All(ctx, &artists) == nil {
+					for _, artist := range artists {
+						artistMap[artist.ID] = artist
+					}
+				}
+			}
+		}
+
+		results := make([]gin.H, 0, len(albums))
+		for _, album := range albums {
+			coverUrl := album.AlbumCoverUrl
+			if coverUrl != "" && !strings.HasPrefix(coverUrl, "http") {
+				coverUrl = serverURL + coverUrl
+			}
+			musicCount, _ := musicCollection.CountDocuments(ctx, bson.M{"albumId": album.ID})
+
+			artistName := ""
+			if artist, ok := artistMap[album.ArtistID]; ok {
+				artistName = artist.Name
+			}
+
+			results = append(results, gin.H{
+				"_id":           album.ID,
+				"name":          album.Name,
+				"artistId":      album.ArtistID,
+				"artistName":    artistName,
+				"albumCoverUrl": coverUrl,
+				"color":         album.Color,
+				"musicCount":    musicCount,
+				"spotifyId":     album.SpotifyID,
+				"spotifyUrl":    album.SpotifyURL,
+				"albumType":     album.AlbumType,
+				"albumGroup":    album.AlbumGroup,
+				"releaseDate":   album.ReleaseDate,
+				"totalTracks":   album.TotalTracks,
+				"createdAt":     album.CreatedAt,
+				"updatedAt":     album.UpdatedAt,
+			})
+		}
+
+		c.JSON(http.StatusOK, gin.H{"albums": results})
+	}
+}
+
+func GetFavoriteArtists() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userClaims, exists := c.Get("user")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Usuário não autenticado"})
+			return
+		}
+
+		claims, ok := userClaims.(jwt.MapClaims)
+		if !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar token"})
+			return
+		}
+
+		userId := claims["UserId"].(string)
+		serverURL := os.Getenv("SERVER_URL")
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		var user struct {
+			FavoriteArtists []primitive.ObjectID `bson:"favoriteArtists"`
+		}
+		if err := userCollection.FindOne(ctx, bson.M{"uid": userId}).Decode(&user); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
+			return
+		}
+
+		if len(user.FavoriteArtists) == 0 {
+			c.JSON(http.StatusOK, gin.H{"artists": []gin.H{}})
+			return
+		}
+
+		cursor, err := artistCollection.Find(ctx, bson.M{"_id": bson.M{"$in": user.FavoriteArtists}})
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao buscar artistas"})
+			return
+		}
+
+		var artists []model.Artist
+		if err := cursor.All(ctx, &artists); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao processar artistas"})
+			return
+		}
+
+		results := make([]gin.H, 0, len(artists))
+		for _, artist := range artists {
+			avatarUrl := artist.AvatarUrl
+			bannerUrl := artist.BannerUrl
+			if avatarUrl != "" && !strings.HasPrefix(avatarUrl, "http") {
+				avatarUrl = serverURL + avatarUrl
+			}
+			if bannerUrl != "" && !strings.HasPrefix(bannerUrl, "http") {
+				bannerUrl = serverURL + bannerUrl
+			}
+			musicCount, _ := musicCollection.CountDocuments(ctx, bson.M{"artistId": artist.ID})
+			albumCount, _ := albumCollection.CountDocuments(ctx, bson.M{"artistId": artist.ID})
+
+			results = append(results, gin.H{
+				"_id":               artist.ID,
+				"name":              artist.Name,
+				"avatarUrl":         avatarUrl,
+				"bannerUrl":         bannerUrl,
+				"bio":               artist.Bio,
+				"color":             artist.Color,
+				"genres":            artist.Genres,
+				"musicCount":        musicCount,
+				"albumCount":        albumCount,
+				"spotifyId":         artist.SpotifyID,
+				"spotifyUrl":        artist.SpotifyURL,
+				"spotifyPopularity": artist.SpotifyPopularity,
+				"spotifyFollowers":  artist.SpotifyFollowers,
+				"createdAt":         artist.CreatedAt,
+				"updatedAt":         artist.UpdatedAt,
+			})
+		}
+
+		c.JSON(http.StatusOK, gin.H{"artists": results})
 	}
 }
 

@@ -35,10 +35,17 @@ type spotifyToken struct {
 }
 
 type spotifyArtist struct {
-	ID     string         `json:"id"`
-	Name   string         `json:"name"`
-	Genres []string       `json:"genres"`
-	Images []spotifyImage `json:"images"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	Genres       []string       `json:"genres"`
+	Images       []spotifyImage `json:"images"`
+	Popularity   int            `json:"popularity"`
+	ExternalURLs struct {
+		Spotify string `json:"spotify"`
+	} `json:"external_urls"`
+	Followers struct {
+		Total int `json:"total"`
+	} `json:"followers"`
 }
 
 type spotifyImage struct {
@@ -54,13 +61,16 @@ type spotifyAlbumsResponse struct {
 }
 
 type spotifyAlbum struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	AlbumType   string         `json:"album_type"`
-	AlbumGroup  string         `json:"album_group"`
-	Images      []spotifyImage `json:"images"`
-	TotalTracks int            `json:"total_tracks"`
-	ReleaseDate string         `json:"release_date"`
+	ID           string         `json:"id"`
+	Name         string         `json:"name"`
+	AlbumType    string         `json:"album_type"`
+	AlbumGroup   string         `json:"album_group"`
+	Images       []spotifyImage `json:"images"`
+	TotalTracks  int            `json:"total_tracks"`
+	ReleaseDate  string         `json:"release_date"`
+	ExternalURLs struct {
+		Spotify string `json:"spotify"`
+	} `json:"external_urls"`
 }
 
 type spotifyTracksResponse struct {
@@ -70,10 +80,20 @@ type spotifyTracksResponse struct {
 }
 
 type spotifyTrack struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	TrackNumber int    `json:"track_number"`
-	DurationMs  int    `json:"duration_ms"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	TrackNumber  int    `json:"track_number"`
+	DiscNumber   int    `json:"disc_number"`
+	DurationMs   int    `json:"duration_ms"`
+	Popularity   int    `json:"popularity"`
+	Explicit     bool   `json:"explicit"`
+	ExternalURLs struct {
+		Spotify string `json:"spotify"`
+	} `json:"external_urls"`
+}
+
+type spotifySeveralTracksResponse struct {
+	Tracks []spotifyTrack `json:"tracks"`
 }
 
 // --- SSE helper ---
@@ -213,16 +233,19 @@ func ImportFromSpotify() gin.HandlerFunc {
 
 		now := time.Now()
 		dbArtist := model.Artist{
-			ID:        artistOID,
-			Name:      spArtist.Name,
-			SpotifyID: spArtist.ID,
-			Genres:    spArtist.Genres,
-			AvatarUrl: "/image/avatar/" + artistOID.Hex(),
-			BannerUrl: "/image/banner/" + artistOID.Hex(),
-			Bio:       artistBio,
-			Color:     artistColor,
-			CreatedAt: now,
-			UpdatedAt: now,
+			ID:                artistOID,
+			Name:              spArtist.Name,
+			SpotifyID:         spArtist.ID,
+			SpotifyURL:        spotifyExternalURL(spArtist.ExternalURLs.Spotify, "artist", spArtist.ID),
+			SpotifyPopularity: spArtist.Popularity,
+			SpotifyFollowers:  spArtist.Followers.Total,
+			Genres:            spArtist.Genres,
+			AvatarUrl:         "/image/avatar/" + artistOID.Hex(),
+			BannerUrl:         "/image/banner/" + artistOID.Hex(),
+			Bio:               artistBio,
+			Color:             artistColor,
+			CreatedAt:         now,
+			UpdatedAt:         now,
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -272,6 +295,12 @@ func ImportFromSpotify() gin.HandlerFunc {
 					ArtistID:      artistOID,
 					AlbumCoverUrl: "/image/cover/" + albumOID.Hex(),
 					Color:         albumColor,
+					SpotifyID:     album.spotify.ID,
+					SpotifyURL:    spotifyExternalURL(album.spotify.ExternalURLs.Spotify, "album", album.spotify.ID),
+					AlbumType:     album.spotify.AlbumType,
+					AlbumGroup:    album.spotify.AlbumGroup,
+					ReleaseDate:   album.spotify.ReleaseDate,
+					TotalTracks:   album.spotify.TotalTracks,
 					CreatedAt:     now,
 					UpdatedAt:     now,
 				}
@@ -401,15 +430,22 @@ func ImportFromSpotify() gin.HandlerFunc {
 				}
 
 				dbMusic := model.Music{
-					ID:        musicOID,
-					Url:       "/stream/" + musicOID.Hex(),
-					Name:      track.Name,
-					ArtistID:  artistOID,
-					Genre:     genre,
-					Waveform:  waveform,
-					Color:     musicColor,
-					CreatedAt: now,
-					UpdatedAt: now,
+					ID:                musicOID,
+					Url:               "/stream/" + musicOID.Hex(),
+					Name:              track.Name,
+					ArtistID:          artistOID,
+					Genre:             genre,
+					Waveform:          waveform,
+					Color:             musicColor,
+					SpotifyID:         track.ID,
+					SpotifyURL:        spotifyExternalURL(track.ExternalURLs.Spotify, "track", track.ID),
+					SpotifyPopularity: track.Popularity,
+					SpotifyDurationMs: track.DurationMs,
+					SpotifyTrackNo:    track.TrackNumber,
+					SpotifyDiscNo:     track.DiscNumber,
+					SpotifyExplicit:   track.Explicit,
+					CreatedAt:         now,
+					UpdatedAt:         now,
 				}
 
 				if !isSingle {
@@ -664,6 +700,16 @@ func fetchSpotifyArtist(ctx context.Context, token, artistId string) (*spotifyAr
 	return &artist, nil
 }
 
+func spotifyExternalURL(value, itemType, id string) string {
+	if strings.TrimSpace(value) != "" {
+		return value
+	}
+	if strings.TrimSpace(id) == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://open.spotify.com/%s/%s", itemType, id)
+}
+
 func fetchAllSpotifyAlbums(ctx context.Context, token, artistId string) ([]spotifyAlbum, error) {
 	var allAlbums []spotifyAlbum
 	url := fmt.Sprintf("https://api.spotify.com/v1/artists/%s/albums?include_groups=album,single,compilation&limit=50&market=BR", artistId)
@@ -715,7 +761,68 @@ func fetchAllSpotifyTracks(ctx context.Context, token, albumId string) ([]spotif
 		}
 	}
 
-	return allTracks, nil
+	return hydrateSpotifyTrackDetails(ctx, token, allTracks)
+}
+
+func hydrateSpotifyTrackDetails(ctx context.Context, token string, tracks []spotifyTrack) ([]spotifyTrack, error) {
+	if len(tracks) == 0 {
+		return tracks, nil
+	}
+
+	trackByID := make(map[string]spotifyTrack, len(tracks))
+	ids := make([]string, 0, len(tracks))
+	for _, track := range tracks {
+		if track.ID == "" {
+			continue
+		}
+		trackByID[track.ID] = track
+		ids = append(ids, track.ID)
+	}
+	if len(ids) == 0 {
+		return tracks, nil
+	}
+
+	for start := 0; start < len(ids); start += 50 {
+		end := start + 50
+		if end > len(ids) {
+			end = len(ids)
+		}
+		apiURL := "https://api.spotify.com/v1/tracks?market=BR&ids=" + strings.Join(ids[start:end], ",")
+		data, err := spotifyGetWithContext(ctx, token, apiURL)
+		if err != nil {
+			return tracks, nil
+		}
+
+		var resp spotifySeveralTracksResponse
+		if err := json.Unmarshal(data, &resp); err != nil {
+			return tracks, nil
+		}
+
+		for _, fullTrack := range resp.Tracks {
+			if fullTrack.ID == "" {
+				continue
+			}
+			existing := trackByID[fullTrack.ID]
+			if fullTrack.Name == "" {
+				fullTrack.Name = existing.Name
+			}
+			if fullTrack.TrackNumber == 0 {
+				fullTrack.TrackNumber = existing.TrackNumber
+			}
+			if fullTrack.DurationMs == 0 {
+				fullTrack.DurationMs = existing.DurationMs
+			}
+			trackByID[fullTrack.ID] = fullTrack
+		}
+	}
+
+	for i, track := range tracks {
+		if hydrated, ok := trackByID[track.ID]; ok {
+			tracks[i] = hydrated
+		}
+	}
+
+	return tracks, nil
 }
 
 // --- External metadata helpers ---

@@ -132,6 +132,17 @@ func CreateArtistRequest() gin.HandlerFunc {
 			return
 		}
 
+		if isArtistRequestAutoAcceptEnabled() {
+			if jobs, err := approveArtistRequestObject(c.Request.Context(), request["_id"].(primitive.ObjectID)); err == nil {
+				c.JSON(http.StatusCreated, gin.H{
+					"message":      "Solicitação aprovada automaticamente",
+					"autoApproved": true,
+					"jobs":         jobs,
+				})
+				return
+			}
+		}
+
 		c.JSON(http.StatusCreated, gin.H{"message": "Solicitação enviada com sucesso"})
 	}
 }
@@ -303,41 +314,122 @@ func ApproveArtistRequest() gin.HandlerFunc {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		var request bson.M
-		err = artistRequestCollection.FindOne(ctx, bson.M{"_id": objectId, "status": "pending"}).Decode(&request)
+		jobs, err := approveArtistRequestObject(ctx, objectId)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Solicitação não encontrada ou já processada"})
 			return
 		}
 
-		now := time.Now()
-		artistRequestCollection.UpdateOne(ctx, bson.M{"_id": objectId}, bson.M{
-			"$set": bson.M{"status": "approved", "reviewedAt": now},
-		})
-
-		// Create import job for this artist
-		spotifyUrl, _ := request["spotifyUrl"].(string)
-		if spotifyUrl == "" {
-			c.JSON(http.StatusOK, gin.H{"message": "Aprovada, mas sem URL para importar"})
-			return
-		}
-
-		// Extract artist ID and use Spotify URL directly
-		matches := spotifyArtistURLRegex.FindStringSubmatch(spotifyUrl)
-		if len(matches) < 2 {
-			c.JSON(http.StatusOK, gin.H{"message": "Aprovada, mas URL inválida para importação"})
-			return
-		}
-
-		// Use the import queue to import
-		urls := []string{strings.TrimSpace(spotifyUrl)}
-		jobs := createImportJobsFromURLs(urls)
-
-		if len(jobs) > 0 {
-			c.JSON(http.StatusOK, gin.H{"message": "Solicitação aprovada e importação iniciada", "jobs": len(jobs)})
+		if jobs > 0 {
+			c.JSON(http.StatusOK, gin.H{"message": "Solicitação aprovada e importação iniciada", "jobs": jobs})
 		} else {
 			c.JSON(http.StatusOK, gin.H{"message": "Solicitação aprovada"})
 		}
+	}
+}
+
+func approveArtistRequestObject(ctx context.Context, objectId primitive.ObjectID) (int, error) {
+	var request bson.M
+	if err := artistRequestCollection.FindOne(ctx, bson.M{"_id": objectId, "status": "pending"}).Decode(&request); err != nil {
+		return 0, err
+	}
+
+	now := time.Now()
+	result, err := artistRequestCollection.UpdateOne(ctx, bson.M{"_id": objectId, "status": "pending"}, bson.M{
+		"$set": bson.M{"status": "approved", "reviewedAt": now},
+	})
+	if err != nil {
+		return 0, err
+	}
+	if result.MatchedCount == 0 {
+		return 0, mongo.ErrNoDocuments
+	}
+
+	spotifyUrl, _ := request["spotifyUrl"].(string)
+	spotifyUrl = strings.TrimSpace(spotifyUrl)
+	if spotifyUrl == "" {
+		return 0, nil
+	}
+
+	matches := spotifyArtistURLRegex.FindStringSubmatch(spotifyUrl)
+	if len(matches) < 2 {
+		return 0, nil
+	}
+
+	jobs := createImportJobsFromURLs([]string{spotifyUrl})
+	return len(jobs), nil
+}
+
+func isArtistRequestAutoAcceptEnabled() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var state struct {
+		Enabled bool `bson:"enabled"`
+	}
+	if err := settingsCollection.FindOne(ctx, bson.M{"_id": "artist_request_autoaccept"}).Decode(&state); err != nil {
+		return false
+	}
+	return state.Enabled
+}
+
+func saveArtistRequestAutoAcceptEnabled(enabled bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	settingsCollection.UpdateOne(ctx,
+		bson.M{"_id": "artist_request_autoaccept"},
+		bson.M{"$set": bson.M{"enabled": enabled, "updatedAt": time.Now()}},
+		options.Update().SetUpsert(true),
+	)
+}
+
+func GetArtistRequestAutoAcceptStatus() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"enabled": isArtistRequestAutoAcceptEnabled()})
+	}
+}
+
+func ToggleArtistRequestAutoAccept() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var body struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Campo 'enabled' é obrigatório"})
+			return
+		}
+
+		saveArtistRequestAutoAcceptEnabled(body.Enabled)
+
+		approved := 0
+		jobs := 0
+		if body.Enabled {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			cursor, err := artistRequestCollection.Find(ctx, bson.M{"status": "pending"})
+			if err == nil {
+				defer cursor.Close(ctx)
+				for cursor.Next(ctx) {
+					var request struct {
+						ID primitive.ObjectID `bson:"_id"`
+					}
+					if cursor.Decode(&request) == nil {
+						if createdJobs, err := approveArtistRequestObject(ctx, request.ID); err == nil {
+							approved++
+							jobs += createdJobs
+						}
+					}
+				}
+			}
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"enabled":  body.Enabled,
+			"approved": approved,
+			"jobs":     jobs,
+		})
 	}
 }
 

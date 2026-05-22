@@ -47,9 +47,31 @@ class ApiDownloadRepo implements DownloadRepo {
     final file = File(filePath);
     if (await file.exists()) {
       await file.delete();
-      storage.set(musicId, DownloadStatus.notDownloaded.index);
-      storage.remove('dl_meta_$musicId');
     }
+    await storage.remove(musicId);
+    await storage.remove('dl_meta_$musicId');
+  }
+
+  @override
+  Future<void> clearDownloads() async {
+    final fileNames = await downloadService.listDownloadedFileNames();
+    for (final name in fileNames) {
+      final musicId = name.replaceAll('.mp3', '');
+      await deleteMusic(musicId);
+    }
+  }
+
+  @override
+  Future<int> getDownloadedBytes() async {
+    final fileNames = await downloadService.listDownloadedFileNames();
+    var total = 0;
+    for (final name in fileNames) {
+      final file = File(await downloadService.getFilePath(name));
+      if (await file.exists()) {
+        total += await file.length();
+      }
+    }
+    return total;
   }
 
   @override
@@ -71,11 +93,25 @@ class ApiDownloadRepo implements DownloadRepo {
   @override
   Future<DownloadStatus> getDownloadStatus(String musicId) async {
     final storedValue = await storage.get(musicId);
-    if (storedValue is int && storedValue >= 0 && storedValue < DownloadStatus.values.length) {
-      return DownloadStatus.values[storedValue];
+    if (storedValue is int &&
+        storedValue >= 0 &&
+        storedValue < DownloadStatus.values.length) {
+      final storedStatus = DownloadStatus.values[storedValue];
+      if (storedStatus != DownloadStatus.downloaded) {
+        return storedStatus;
+      }
+
+      final isDownloaded = await isMusicDownloaded(musicId);
+      if (isDownloaded) return DownloadStatus.downloaded;
+
+      await storage.remove(musicId);
+      await storage.remove('dl_meta_$musicId');
+      return DownloadStatus.notDownloaded;
     }
 
     final isDownloaded = await isMusicDownloaded(musicId);
-    return isDownloaded ? DownloadStatus.downloaded : DownloadStatus.notDownloaded;
+    return isDownloaded
+        ? DownloadStatus.downloaded
+        : DownloadStatus.notDownloaded;
   }
 }

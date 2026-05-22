@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/core/services/connectivity/connectivity_service.dart';
@@ -54,6 +55,16 @@ class _PlaylistControlState extends State<PlaylistControl> {
 
   void _addMusic() {
     _showAddMusicSheet();
+  }
+
+  Future<void> _editPlaylist() async {
+    final updated = await context.push<Playlist>(
+      '/auth/ui/editPlaylist',
+      extra: widget.playlist,
+    );
+    if (updated != null) {
+      widget.onPlaylistUpdated(updated);
+    }
   }
 
   void _showAddMusicSheet() {
@@ -111,8 +122,7 @@ class _PlaylistControlState extends State<PlaylistControl> {
                       setSheetState(() {
                         isLoading = false;
                         results = res
-                            .where(
-                                (s) => s.type == 'music' && s.music != null)
+                            .where((s) => s.type == 'music' && s.music != null)
                             .toList();
                       });
                     },
@@ -140,7 +150,8 @@ class _PlaylistControlState extends State<PlaylistControl> {
                             onTap: alreadyAdded
                                 ? () {}
                                 : () async {
-                                    final isOnline = getIt<ConnectivityService>().isOnline;
+                                    final isOnline =
+                                        getIt<ConnectivityService>().isOnline;
                                     final wasFullyDownloaded =
                                         downloadCubit.getPlaylistStatus(
                                               widget.playlist.musics
@@ -156,9 +167,9 @@ class _PlaylistControlState extends State<PlaylistControl> {
                                     );
                                     if (updated != null) {
                                       if (wasFullyDownloaded && isOnline) {
-                                        final alreadyDownloaded =
-                                            downloadCubit.state[search.music!.id] ==
-                                                DownloadStatus.downloaded;
+                                        final alreadyDownloaded = downloadCubit
+                                                .state[search.music!.id] ==
+                                            DownloadStatus.downloaded;
                                         if (!alreadyDownloaded) {
                                           downloadCubit
                                               .downloadMusic(search.music!);
@@ -175,9 +186,8 @@ class _PlaylistControlState extends State<PlaylistControl> {
                                     ),
                             trailing: alreadyAdded
                                 ? Icon(Icons.check,
-                                    color: Theme.of(sheetCtx)
-                                        .colorScheme
-                                        .primary)
+                                    color:
+                                        Theme.of(sheetCtx).colorScheme.primary)
                                 : null,
                           );
                         },
@@ -225,6 +235,14 @@ class _PlaylistControlState extends State<PlaylistControl> {
                 size: 20,
               ),
             ),
+            IconButton(
+              onPressed: _editPlaylist,
+              icon: Icon(
+                Icons.edit_outlined,
+                color: Theme.of(context).colorScheme.onSurface,
+                size: 20,
+              ),
+            ),
             const Spacer(),
             IconButton(
               onPressed: _toogleScheffle,
@@ -267,8 +285,7 @@ class PlaylistDownloadButton extends StatefulWidget {
   const PlaylistDownloadButton({super.key, required this.playlist});
 
   @override
-  State<PlaylistDownloadButton> createState() =>
-      _PlaylistDownloadButtonState();
+  State<PlaylistDownloadButton> createState() => _PlaylistDownloadButtonState();
 }
 
 class _PlaylistDownloadButtonState extends State<PlaylistDownloadButton> {
@@ -328,7 +345,8 @@ class _PlaylistDownloadButtonState extends State<PlaylistDownloadButton> {
             return IconButton(
               onPressed: widget.playlist.musics.isEmpty
                   ? null
-                  : () => downloadCubit.downloadPlaylist(widget.playlist.musics),
+                  : () =>
+                      downloadCubit.downloadPlaylist(widget.playlist.musics),
               icon: Icon(
                 CustomIcons.download,
                 size: 20,
@@ -340,4 +358,3 @@ class _PlaylistDownloadButtonState extends State<PlaylistDownloadButton> {
     );
   }
 }
-

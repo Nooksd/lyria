@@ -6,6 +6,8 @@ abstract class DownloadRepo {
   Future<void> downloadPlaylist(List<Music> musics);
   Future<bool> isMusicDownloaded(String musicId);
   Future<void> deleteMusic(String musicId);
+  Future<void> clearDownloads();
+  Future<int> getDownloadedBytes();
   Future<DownloadStatus> getDownloadStatus(String musicId);
   Future<List<Music>> getDownloadedMusics();
 }

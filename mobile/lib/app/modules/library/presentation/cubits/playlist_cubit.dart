@@ -56,7 +56,8 @@ class PlaylistCubit extends Cubit<PlaylistState> {
   Future<void> createPlaylist(String name, File? imageCover) async {
     Playlist? newPlaylist;
     if (imageCover != null) {
-      newPlaylist = await playlistRepo.createPlaylistWithImage(name, imageCover);
+      newPlaylist =
+          await playlistRepo.createPlaylistWithImage(name, imageCover);
     } else {
       newPlaylist = await playlistRepo.createPlaylist(name);
     }
@@ -82,6 +83,38 @@ class PlaylistCubit extends Cubit<PlaylistState> {
     }
   }
 
+  Future<Playlist?> updatePlaylistDetails(
+    Playlist playlist,
+    String name,
+    File? imageCover,
+  ) async {
+    final updated = playlist.copyWith(
+      name: name,
+      updatedAt: DateTime.now(),
+    );
+
+    final saved = await playlistRepo.updatePlaylist(updated);
+    if (imageCover != null) {
+      final uploaded = await playlistRepo.uploadPlaylistCover(
+        playlist.id,
+        imageCover,
+      );
+      if (uploaded) {
+        _lastRefreshTime = DateTime.now();
+        await _saveLastRefreshTime();
+      }
+    }
+
+    final idx = _playlists.indexWhere((p) => p.id == playlist.id);
+    if (idx >= 0) {
+      _playlists[idx] = saved;
+    } else {
+      _playlists.add(saved);
+    }
+    emit(PlaylistLoaded(List.from(_playlists)));
+    return saved;
+  }
+
   Future<Playlist?> addMusicToPlaylist(Playlist playlist, Music music) async {
     if (playlist.musics.any((m) => m.id == music.id)) return playlist;
     final updated = playlist.copyWith(
@@ -97,8 +130,10 @@ class PlaylistCubit extends Cubit<PlaylistState> {
     return updated;
   }
 
-  Future<Playlist?> removeMusicFromPlaylist(Playlist playlist, String musicId) async {
-    final updatedMusics = playlist.musics.where((m) => m.id != musicId).toList();
+  Future<Playlist?> removeMusicFromPlaylist(
+      Playlist playlist, String musicId) async {
+    final updatedMusics =
+        playlist.musics.where((m) => m.id != musicId).toList();
     final updated = playlist.copyWith(
       musics: updatedMusics,
       updatedAt: DateTime.now(),

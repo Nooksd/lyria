@@ -114,10 +114,60 @@ class DioClient implements MyHttpClient {
     });
   }
 
+  bool _shouldRetryStatus(int? statusCode) {
+    if (statusCode == null) return true;
+    return statusCode == 408 || statusCode == 429 || statusCode >= 500;
+  }
+
+  bool _shouldRetryException(DioException error) {
+    if (error.response?.statusCode == 401) return false;
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+      case DioExceptionType.connectionError:
+      case DioExceptionType.unknown:
+        return true;
+      case DioExceptionType.badResponse:
+        return _shouldRetryStatus(error.response?.statusCode);
+      case DioExceptionType.cancel:
+      case DioExceptionType.badCertificate:
+        return false;
+    }
+  }
+
+  Future<Response<dynamic>> _withRetry(
+    Future<Response<dynamic>> Function() request,
+  ) async {
+    DioException? lastError;
+
+    for (var attempt = 0; attempt < 3; attempt++) {
+      try {
+        final response = await request();
+        if (!_shouldRetryStatus(response.statusCode) || attempt == 2) {
+          return response;
+        }
+      } on DioException catch (error) {
+        if (!_shouldRetryException(error) || attempt == 2) {
+          rethrow;
+        }
+        lastError = error;
+      }
+
+      await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+    }
+
+    throw lastError ??
+        DioException(
+          requestOptions: RequestOptions(path: ''),
+          error: 'Request failed after retries',
+        );
+  }
+
   @override
   Future<dynamic> get(String url) async {
     try {
-      final response = await dio.get(url);
+      final response = await _withRetry(() => dio.get(url));
       return {
         "data": response.data,
         "status": response.statusCode,
@@ -132,7 +182,7 @@ class DioClient implements MyHttpClient {
   @override
   Future<dynamic> delete(String url) async {
     try {
-      final response = await dio.delete(url);
+      final response = await _withRetry(() => dio.delete(url));
       return {
         "data": response.data,
         "status": response.statusCode,
@@ -147,7 +197,7 @@ class DioClient implements MyHttpClient {
   @override
   Future<dynamic> post(String url, {dynamic data}) async {
     try {
-      final response = await dio.post(url, data: data);
+      final response = await _withRetry(() => dio.post(url, data: data));
       return {
         "data": response.data,
         "status": response.statusCode,
@@ -162,21 +212,26 @@ class DioClient implements MyHttpClient {
   @override
   Future multiPart(String url, {dynamic body}) async {
     try {
-      final formData = FormData();
+      Future<FormData> buildFormData() async {
+        final formData = FormData();
 
-      await Future.forEach(body.entries,
-          (MapEntry<String, dynamic> entry) async {
-        if (entry.value is File) {
-          formData.files.add(MapEntry(
-            entry.key,
-            await MultipartFile.fromFile(entry.value.path),
-          ));
-        } else {
-          formData.fields.add(MapEntry(entry.key, entry.value.toString()));
-        }
-      });
+        await Future.forEach(body.entries,
+            (MapEntry<String, dynamic> entry) async {
+          if (entry.value is File) {
+            formData.files.add(MapEntry(
+              entry.key,
+              await MultipartFile.fromFile(entry.value.path),
+            ));
+          } else {
+            formData.fields.add(MapEntry(entry.key, entry.value.toString()));
+          }
+        });
 
-      final response = await dio.post(url, data: formData);
+        return formData;
+      }
+
+      final response = await _withRetry(
+          () async => dio.post(url, data: await buildFormData()));
 
       return {
         "data": response.data,
@@ -192,7 +247,7 @@ class DioClient implements MyHttpClient {
   @override
   Future<dynamic> put(String url, {dynamic data}) async {
     try {
-      final response = await dio.put(url, data: data);
+      final response = await _withRetry(() => dio.put(url, data: data));
       return {
         "data": response.data,
         "status": response.statusCode,
@@ -207,7 +262,7 @@ class DioClient implements MyHttpClient {
   @override
   Future<File> download(String url, String filePath) async {
     try {
-      await dio.download(url, filePath);
+      await _withRetry(() => dio.download(url, filePath));
       return File(filePath);
     } catch (e) {
       rethrow;
