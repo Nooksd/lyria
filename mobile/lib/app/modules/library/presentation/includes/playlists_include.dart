@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
@@ -151,6 +152,12 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                   itemBuilder: (context, index) {
                     if (index < playlists.length) {
                       final playlist = playlists[index];
+                      final coverUrl = ApiConfig.versionedImageUrl(
+                        playlist.playlistCoverUrl,
+                      );
+                      final coverCacheKey = ApiConfig.versionedImageCacheKey(
+                        playlist.playlistCoverUrl,
+                      );
                       return SizedBox(
                         width: itemWidth,
                         child: Column(
@@ -167,9 +174,8 @@ class _PlaylistsIncludeState extends State<PlaylistsInclude> {
                                   height: itemWidth,
                                   child: playlist.playlistCoverUrl.isNotEmpty
                                       ? CachedNetworkImage(
-                                          imageUrl:
-                                              '${playlist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
-                                          cacheKey: playlist.playlistCoverUrl,
+                                          imageUrl: coverUrl,
+                                          cacheKey: coverCacheKey,
                                           fit: BoxFit.cover,
                                           fadeInDuration: Duration.zero,
                                           fadeOutDuration: Duration.zero,

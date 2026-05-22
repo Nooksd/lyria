@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lottie/lottie.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
@@ -79,8 +80,14 @@ class _AddPlaylistState extends State<AddPlaylist> {
     final coverProvider = selectedImage != null
         ? FileImage(selectedImage!) as ImageProvider<Object>
         : widget.playlist?.playlistCoverUrl.isNotEmpty == true
-            ? CachedNetworkImageProvider(widget.playlist!.playlistCoverUrl)
-                as ImageProvider<Object>
+            ? CachedNetworkImageProvider(
+                ApiConfig.versionedImageUrl(
+                  widget.playlist!.playlistCoverUrl,
+                ),
+                cacheKey: ApiConfig.versionedImageCacheKey(
+                  widget.playlist!.playlistCoverUrl,
+                ),
+              ) as ImageProvider<Object>
             : const AssetImage('assets/images/default.png');
 
     return Scaffold(

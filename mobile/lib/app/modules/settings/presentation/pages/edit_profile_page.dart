@@ -2,12 +2,12 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lyria/app/app_router.dart';
-import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
+import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -60,15 +60,24 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     try {
       final file = File(picked.path);
-      await http.multiPart('/image/avatar', body: {'avatar': file});
+      final response =
+          await http.multiPart('/image/avatar', body: {'avatar': file});
+      if (response['status'] != 200) {
+        throw Exception(response['error'] ?? 'Avatar upload failed');
+      }
 
       final user = authCubit.currentUser;
       if (user != null && user.avatarUrl.isNotEmpty) {
-        await DefaultCacheManager().removeFile(user.avatarUrl);
+        final avatarUrl = ApiConfig.fixImageUrl(user.avatarUrl);
+        try {
+          await CachedNetworkImage.evictFromCache(avatarUrl);
+        } catch (_) {}
+        _avatarCacheBuster = ApiConfig.bustImageCache(avatarUrl);
       }
 
+      if (!mounted) return;
       setState(() {
-        _avatarCacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
+        _avatarCacheBuster ??= DateTime.now().microsecondsSinceEpoch.toString();
       });
 
       if (mounted) {
@@ -138,10 +147,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
     final primary = Theme.of(context).colorScheme.primary;
 
     final avatarUrl = user != null && user.avatarUrl.isNotEmpty
-        ? (_avatarCacheBuster != null
-            ? '${user.avatarUrl}?v=$_avatarCacheBuster'
-            : user.avatarUrl)
+        ? ApiConfig.versionedImageUrl(
+            user.avatarUrl,
+            version: _avatarCacheBuster,
+          )
         : '';
+    final avatarCacheKey = user != null && user.avatarUrl.isNotEmpty
+        ? ApiConfig.versionedImageCacheKey(
+            user.avatarUrl,
+            version: _avatarCacheBuster,
+          )
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -191,13 +207,12 @@ class _EditProfilePageState extends State<EditProfilePage> {
                       child: avatarUrl.isNotEmpty
                           ? CachedNetworkImage(
                               imageUrl: avatarUrl,
+                              cacheKey: avatarCacheKey,
                               fit: BoxFit.cover,
                               fadeInDuration: Duration.zero,
                               fadeOutDuration: Duration.zero,
-                              placeholder: (_, __) => const Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: Colors.white54),
+                              placeholder: (_, __) => const Icon(Icons.person,
+                                  size: 50, color: Colors.white54),
                               errorWidget: (_, __, ___) => const Icon(
                                   Icons.person,
                                   size: 50,

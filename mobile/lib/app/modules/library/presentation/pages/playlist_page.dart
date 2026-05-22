@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/common/custom_container.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
@@ -36,14 +37,13 @@ class _PlaylistPageState extends State<PlaylistPage> {
   }
 
   Future<void> _onRemoveMusic(String musicId) async {
-    final wasFullyDownloaded =
-        downloadCubit.getPlaylistStatus(
-              _currentPlaylist.musics.map((m) => m.id).toList(),
-            ) ==
-            PlaylistDownloadStatus.downloaded;
+    final wasFullyDownloaded = downloadCubit.getPlaylistStatus(
+          _currentPlaylist.musics.map((m) => m.id).toList(),
+        ) ==
+        PlaylistDownloadStatus.downloaded;
 
-    final updated = await playlistCubit.removeMusicFromPlaylist(
-        _currentPlaylist, musicId);
+    final updated =
+        await playlistCubit.removeMusicFromPlaylist(_currentPlaylist, musicId);
     if (updated != null && mounted) {
       setState(() => _currentPlaylist = updated);
       if (wasFullyDownloaded) {
@@ -56,6 +56,12 @@ class _PlaylistPageState extends State<PlaylistPage> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
+    final playlistCoverUrl = ApiConfig.versionedImageUrl(
+      _currentPlaylist.playlistCoverUrl,
+    );
+    final playlistCoverCacheKey = ApiConfig.versionedImageCacheKey(
+      _currentPlaylist.playlistCoverUrl,
+    );
 
     return Scaffold(
       body: CustomContainer(
@@ -107,9 +113,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
                         height: screenWidth * 0.6,
                         child: _currentPlaylist.playlistCoverUrl.isNotEmpty
                             ? CachedNetworkImage(
-                                imageUrl:
-                                    '${_currentPlaylist.playlistCoverUrl}?v=${playlistCubit.cacheBuster}',
-                                cacheKey: _currentPlaylist.playlistCoverUrl,
+                                imageUrl: playlistCoverUrl,
+                                cacheKey: playlistCoverCacheKey,
                                 fit: BoxFit.cover,
                                 fadeInDuration: Duration.zero,
                                 fadeOutDuration: Duration.zero,
@@ -178,4 +183,3 @@ class _PlaylistPageState extends State<PlaylistPage> {
     );
   }
 }
-

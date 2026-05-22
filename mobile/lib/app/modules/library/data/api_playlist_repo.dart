@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/services/connectivity/connectivity_service.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
@@ -288,6 +290,7 @@ class ApiPlaylistRepo extends PlaylistRepo {
         return false;
       }
 
+      await _bustPlaylistCoverCache(playlistId);
       return true;
     } catch (e) {
       return false;
@@ -533,5 +536,15 @@ class ApiPlaylistRepo extends PlaylistRepo {
     playlists = updateFn(playlists);
     await _savePlaylists(playlists);
     return playlists;
+  }
+
+  Future<void> _bustPlaylistCoverCache(String playlistId) async {
+    final coverUrl = ApiConfig.fixImageUrl('/image/playlist/$playlistId');
+    ApiConfig.bustImageCache(coverUrl);
+    try {
+      await DefaultCacheManager().removeFile(coverUrl);
+    } catch (e) {
+      debugPrint('[PlaylistRepo] cover cache cleanup error: $e');
+    }
   }
 }

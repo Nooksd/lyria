@@ -4,18 +4,18 @@ import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/services/connectivity/connectivity_service.dart';
+import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/core/services/storege/my_local_storage.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_states.dart';
-import 'package:lyria/app/core/services/http/my_http_client.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -86,15 +86,24 @@ class _ProfilePageState extends State<ProfilePage> {
 
     try {
       final file = File(picked.path);
-      await http.multiPart('/image/avatar', body: {'avatar': file});
+      final response =
+          await http.multiPart('/image/avatar', body: {'avatar': file});
+      if (response['status'] != 200) {
+        throw Exception(response['error'] ?? 'Avatar upload failed');
+      }
 
       final user = authCubit.currentUser;
       if (user != null && user.avatarUrl.isNotEmpty) {
-        await DefaultCacheManager().removeFile(user.avatarUrl);
+        final avatarUrl = ApiConfig.fixImageUrl(user.avatarUrl);
+        try {
+          await CachedNetworkImage.evictFromCache(avatarUrl);
+        } catch (_) {}
+        _avatarCacheBuster = ApiConfig.bustImageCache(avatarUrl);
       }
 
+      if (!mounted) return;
       setState(() {
-        _avatarCacheBuster = DateTime.now().millisecondsSinceEpoch.toString();
+        _avatarCacheBuster ??= DateTime.now().microsecondsSinceEpoch.toString();
       });
     } catch (_) {
       if (mounted) {
@@ -120,12 +129,17 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     final avatarUrl = user != null && user.avatarUrl.isNotEmpty
-        ? (_avatarCacheBuster != null
-            ? '${user.avatarUrl}?v=$_avatarCacheBuster'
-            : user.avatarUrl)
+        ? ApiConfig.versionedImageUrl(
+            user.avatarUrl,
+            version: _avatarCacheBuster,
+          )
         : '';
-    final avatarCacheKey =
-        user != null && user.avatarUrl.isNotEmpty ? user.avatarUrl : null;
+    final avatarCacheKey = user != null && user.avatarUrl.isNotEmpty
+        ? ApiConfig.versionedImageCacheKey(
+            user.avatarUrl,
+            version: _avatarCacheBuster,
+          )
+        : null;
 
     return BlocBuilder<ConnectivityCubit, bool>(
       bloc: getIt<ConnectivityCubit>(),
@@ -158,8 +172,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       top: MediaQuery.of(context).padding.top + 8,
                       left: 8,
                       child: IconButton(
-                        icon:
-                            const Icon(Icons.arrow_back, color: Colors.white),
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
                         onPressed: () => context.pop(),
                       ),
                     ),
@@ -199,14 +212,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                       fit: BoxFit.cover,
                                       fadeInDuration: Duration.zero,
                                       fadeOutDuration: Duration.zero,
-                                      placeholder: (_, __) =>
-                                          const Icon(Icons.person,
-                                              size: 50,
-                                              color: Colors.white54),
-                                      errorWidget: (_, __, ___) =>
-                                          const Icon(Icons.person,
-                                              size: 50,
-                                              color: Colors.white54),
+                                      placeholder: (_, __) => const Icon(
+                                          Icons.person,
+                                          size: 50,
+                                          color: Colors.white54),
+                                      errorWidget: (_, __, ___) => const Icon(
+                                          Icons.person,
+                                          size: 50,
+                                          color: Colors.white54),
                                     )
                                   : const Icon(Icons.person,
                                       size: 50, color: Colors.white54),
@@ -263,8 +276,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.cloud_off,
-                                size: 14, color: Colors.grey),
+                            Icon(Icons.cloud_off, size: 14, color: Colors.grey),
                             const SizedBox(width: 4),
                             Text(
                               'Offline',
@@ -288,8 +300,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         playlistState is PlaylistLoaded
                             ? playlistState.playlists
                             : [];
-                    final favoriteCount =
-                        profile?['favoriteCount'] ?? 0;
+                    final favoriteCount = profile?['favoriteCount'] ?? 0;
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -351,22 +362,24 @@ class _ProfilePageState extends State<ProfilePage> {
                                 )
                               else
                                 ...playlists.map((playlist) {
-                                  final coverUrl =
-                                      playlist.playlistCoverUrl;
+                                  final coverUrl = ApiConfig.versionedImageUrl(
+                                    playlist.playlistCoverUrl,
+                                  );
+                                  final coverCacheKey =
+                                      ApiConfig.versionedImageCacheKey(
+                                    playlist.playlistCoverUrl,
+                                  );
                                   return ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     leading: ClipRRect(
-                                      borderRadius:
-                                          BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(8),
                                       child: SizedBox(
                                         width: 55,
                                         height: 55,
                                         child: coverUrl.isNotEmpty
                                             ? CachedNetworkImage(
                                                 imageUrl: coverUrl,
-                                                cacheKey: coverUrl
-                                                    .split('?')
-                                                    .first,
+                                                cacheKey: coverCacheKey,
                                                 fit: BoxFit.cover,
                                                 fadeInDuration: Duration.zero,
                                                 fadeOutDuration: Duration.zero,
@@ -375,16 +388,13 @@ class _ProfilePageState extends State<ProfilePage> {
                                                   color: primary.withValues(
                                                       alpha: 0.3),
                                                 ),
-                                                errorWidget:
-                                                    (_, __, ___) =>
-                                                        Container(
+                                                errorWidget: (_, __, ___) =>
+                                                    Container(
                                                   color: primary.withValues(
                                                       alpha: 0.3),
                                                   child: const Icon(
-                                                      Icons
-                                                          .library_music,
-                                                      color:
-                                                          Colors.white54),
+                                                      Icons.library_music,
+                                                      color: Colors.white54),
                                                 ),
                                               )
                                             : Container(
@@ -392,8 +402,7 @@ class _ProfilePageState extends State<ProfilePage> {
                                                     alpha: 0.3),
                                                 child: const Icon(
                                                     Icons.library_music,
-                                                    color:
-                                                        Colors.white54),
+                                                    color: Colors.white54),
                                               ),
                                       ),
                                     ),
@@ -448,10 +457,8 @@ class _ProfilePageState extends State<ProfilePage> {
           label,
           style: TextStyle(
             fontSize: 12,
-            color: Theme.of(context)
-                .colorScheme
-                .onSurface
-                .withValues(alpha: 0.6),
+            color:
+                Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
           ),
         ),
       ],

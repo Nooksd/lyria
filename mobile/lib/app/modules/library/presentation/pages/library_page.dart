@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/auth/presentation/cubits/auth_cubit.dart';
 import 'package:lyria/app/modules/library/presentation/includes/playlists_include.dart';
@@ -51,20 +52,27 @@ class LibraryPage extends StatelessWidget {
                         ),
                         child: user.avatarUrl.isNotEmpty
                             ? CachedNetworkImage(
-                                imageUrl: user.avatarUrl,
+                                imageUrl:
+                                    ApiConfig.versionedImageUrl(user.avatarUrl),
+                                cacheKey: ApiConfig.versionedImageCacheKey(
+                                  user.avatarUrl,
+                                ),
                                 fit: BoxFit.cover,
                                 fadeInDuration: Duration.zero,
                                 fadeOutDuration: Duration.zero,
                                 placeholder: (_, __) => Container(
                                   color: Theme.of(context).colorScheme.primary,
-                                  child: const Icon(Icons.person, color: Colors.white54, size: 24),
+                                  child: const Icon(Icons.person,
+                                      color: Colors.white54, size: 24),
                                 ),
                                 errorWidget: (_, __, ___) => Container(
                                   color: Theme.of(context).colorScheme.primary,
-                                  child: const Icon(Icons.person, color: Colors.white54, size: 24),
+                                  child: const Icon(Icons.person,
+                                      color: Colors.white54, size: 24),
                                 ),
                               )
-                            : Icon(Icons.person, color: Colors.white54, size: 24),
+                            : Icon(Icons.person,
+                                color: Colors.white54, size: 24),
                       ),
                     ),
                   ),

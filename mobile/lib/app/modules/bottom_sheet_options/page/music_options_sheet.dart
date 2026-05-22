@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:lyria/app/app_router.dart';
+import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
@@ -250,6 +251,9 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
                         final selected = selectedIds.contains(playlist.id);
                         final alreadyAdded =
                             alreadyAddedIds.contains(playlist.id);
+                        final coverUrl = ApiConfig.versionedImageUrl(
+                          playlist.playlistCoverUrl,
+                        );
 
                         return CheckboxListTile(
                           value: selected,
@@ -276,7 +280,7 @@ class _AddToPlaylistSheetState extends State<_AddToPlaylistSheet> {
                                       child: const Icon(CustomIcons.list),
                                     )
                                   : Image.network(
-                                      playlist.playlistCoverUrl,
+                                      coverUrl,
                                       fit: BoxFit.cover,
                                       errorBuilder: (_, __, ___) => Container(
                                         color: Theme.of(context)
