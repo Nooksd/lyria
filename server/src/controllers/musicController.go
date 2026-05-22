@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	database "server/src/db"
 	helper "server/src/helpers"
 	model "server/src/models"
@@ -123,6 +124,15 @@ func UpdateMusic() gin.HandlerFunc {
 		}
 		if color, ok := body["color"].(string); ok && color != "" {
 			update["color"] = color
+		}
+		if url, ok := body["url"].(string); ok && strings.TrimSpace(url) != "" {
+			newWaveform, err := replaceMusicFile(url, id.Hex())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao substituir o arquivo da mÃºsica", "details": err.Error()})
+				return
+			}
+			update["url"] = "/stream/" + id.Hex()
+			update["waveform"] = newWaveform
 		}
 		update["updatedAt"] = time.Now()
 
@@ -239,6 +249,41 @@ func downloadMusic(url string, id string) bool {
 	err := cmd.Run()
 
 	return err == nil
+}
+
+func replaceMusicFile(url string, id string) ([]float64, error) {
+	tempID := fmt.Sprintf("%s-replace-%d", id, time.Now().UnixNano())
+	if !downloadMusic(url, tempID) {
+		return nil, fmt.Errorf("download failed")
+	}
+
+	tempPath := filepath.Join(".", "uploads", "music", tempID+".m4a")
+	targetPath := filepath.Join(".", "uploads", "music", id+".m4a")
+	backupPath := filepath.Join(".", "uploads", "music", id+".bak.m4a")
+
+	defer os.Remove(tempPath)
+	defer os.Remove(backupPath)
+
+	waveForm, err := GetWaveform(tempPath)
+	if err != nil {
+		return nil, err
+	}
+
+	_ = os.Remove(backupPath)
+	if _, err := os.Stat(targetPath); err == nil {
+		if err := os.Rename(targetPath, backupPath); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := os.Rename(tempPath, targetPath); err != nil {
+		if _, backupErr := os.Stat(backupPath); backupErr == nil {
+			_ = os.Rename(backupPath, targetPath)
+		}
+		return nil, err
+	}
+
+	return waveForm, nil
 }
 
 func GetWaveform(audioPath string) ([]float64, error) {

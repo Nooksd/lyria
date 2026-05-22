@@ -2,6 +2,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:get_it/get_it.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/services/cache/favorites_cache.dart';
+import 'package:lyria/app/core/services/cache/offline_media_cache.dart';
 import 'package:lyria/app/core/services/connectivity/connectivity_service.dart';
 import 'package:lyria/app/core/services/download/download_service.dart';
 import 'package:lyria/app/core/services/http/my_http_client.dart';
@@ -59,6 +60,12 @@ Future<void> setupLocator(AudioHandler audioHandler) async {
       storage: getIt<MyLocalStorage>(),
       http: getIt<MyHttpClient>(),
       connectivity: getIt<ConnectivityService>(),
+    ),
+  );
+  getIt.registerSingleton<OfflineMediaCache>(
+    OfflineMediaCache(
+      storage: getIt<MyLocalStorage>(),
+      downloadRepo: getIt<ApiDownloadRepo>(),
     ),
   );
 

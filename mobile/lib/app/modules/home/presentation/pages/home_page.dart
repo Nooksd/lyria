@@ -64,13 +64,18 @@ class _HomePageState extends State<HomePage>
   }
 
   Future<void> _setVolume(int newVolume) async {
-    if (newVolume >= 0 && newVolume <= 10) {
-      double volumeToSet = newVolume / 10;
-      await VolumeController.instance.setVolume(volumeToSet);
-      setState(() {
-        volume = newVolume;
-      });
-    }
+    final safeVolume = newVolume.clamp(0, 10).toInt();
+    double volumeToSet = safeVolume / 10;
+    await VolumeController.instance.setVolume(volumeToSet);
+    setState(() {
+      volume = safeVolume;
+    });
+  }
+
+  void _setVolumeFromLocalPosition(double dy, double height) {
+    if (height <= 0) return;
+    final normalized = (1 - (dy / height)).clamp(0.0, 1.0);
+    _setVolume((normalized * 10).ceil());
   }
 
   void _handleMusicStateChange(MusicState state) {
@@ -97,121 +102,142 @@ class _HomePageState extends State<HomePage>
               mainAxisAlignment: MainAxisAlignment.start,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-              SizedBox(height: 45),
-              if (state is MusicPlaying) QueueTile(),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
-                child: Text(
-                  'Painel de controle',
-                  style: TextStyle(
-                    fontSize: 20,
+                SizedBox(height: 45),
+                if (state is MusicPlaying) QueueTile(),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
+                  child: Text(
+                    'Painel de controle',
+                    style: TextStyle(
+                      fontSize: 20,
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(height: 20),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
-                child: SizedBox(
-                  height: 300,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.start,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                CustomContainer(
-                                  width: state is MusicPlaying
-                                      ? screenWidth * 0.35
-                                      : screenWidth * 0.7,
-                                  height: state is MusicPlaying ? 200 : 300,
-                                  child: CreateMusicJamTile(),
-                                ),
-                                if (state is MusicPlaying)
-                                  SizedBox(width: screenWidth * 0.05),
-                                if (state is MusicPlaying)
-                                  GestureDetector(
-                                    onTap: () => context.push('/auth/music'),
-                                    child: CustomContainer(
-                                      width: screenWidth * 0.35,
-                                      height: 200,
-                                      child: PlayingMusicTile(
-                                        state: state,
-                                        rotationController: _rotationController,
+                SizedBox(height: 20),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.03),
+                  child: SizedBox(
+                    height: 300,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  CustomContainer(
+                                    width: state is MusicPlaying
+                                        ? screenWidth * 0.35
+                                        : screenWidth * 0.7,
+                                    height: state is MusicPlaying ? 200 : 300,
+                                    child: CreateMusicJamTile(),
+                                  ),
+                                  if (state is MusicPlaying)
+                                    SizedBox(width: screenWidth * 0.05),
+                                  if (state is MusicPlaying)
+                                    GestureDetector(
+                                      onTap: () => context.push('/auth/music'),
+                                      child: CustomContainer(
+                                        width: screenWidth * 0.35,
+                                        height: 200,
+                                        child: PlayingMusicTile(
+                                          state: state,
+                                          rotationController:
+                                              _rotationController,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                              ],
-                            ),
-                            if (state is MusicPlaying)
-                              CustomContainer(
-                                width: screenWidth * 0.75,
-                                height: 70,
-                                child: SeekTile(),
+                                ],
                               ),
-                          ],
+                              if (state is MusicPlaying)
+                                CustomContainer(
+                                  width: screenWidth * 0.75,
+                                  height: 70,
+                                  child: SeekTile(),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(
-                        height: 300,
-                        child: Column(
-                          children: [
-                            GestureDetector(
-                              onTap: () => _setVolume(volume + 1),
-                              child: CustomContainer(
-                                width: screenWidth * 0.13,
-                                height: 25,
-                                child: Icon(CustomIcons.plus, size: 13),
+                        SizedBox(
+                          height: 300,
+                          child: Column(
+                            children: [
+                              GestureDetector(
+                                onTap: () => _setVolume(volume + 1),
+                                child: CustomContainer(
+                                  width: screenWidth * 0.13,
+                                  height: 25,
+                                  child: Icon(CustomIcons.plus, size: 13),
+                                ),
                               ),
-                            ),
-                            SizedBox(height: 20),
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: List.generate(
-                                  10,
-                                  (index) {
-                                    return Container(
-                                      width: screenWidth * 0.13,
-                                      height: 8,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary
-                                            .withValues(
-                                                alpha: volume >= (index + 1)
-                                                    ? 1
-                                                    : 0.4),
-                                        borderRadius: BorderRadius.circular(25),
+                              SizedBox(height: 20),
+                              Expanded(
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    return GestureDetector(
+                                      behavior: HitTestBehavior.opaque,
+                                      onTapDown: (details) =>
+                                          _setVolumeFromLocalPosition(
+                                        details.localPosition.dy,
+                                        constraints.maxHeight,
+                                      ),
+                                      onVerticalDragUpdate: (details) =>
+                                          _setVolumeFromLocalPosition(
+                                        details.localPosition.dy,
+                                        constraints.maxHeight,
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: List.generate(
+                                          10,
+                                          (index) {
+                                            final level = 10 - index;
+                                            return Container(
+                                              width: screenWidth * 0.13,
+                                              height: 8,
+                                              decoration: BoxDecoration(
+                                                color: Theme.of(context)
+                                                    .colorScheme
+                                                    .primary
+                                                    .withValues(
+                                                      alpha: volume >= level
+                                                          ? 1
+                                                          : 0.4,
+                                                    ),
+                                                borderRadius:
+                                                    BorderRadius.circular(25),
+                                              ),
+                                            );
+                                          },
+                                        ),
                                       ),
                                     );
                                   },
-                                ).reversed.toList(),
+                                ),
                               ),
-                            ),
-                            SizedBox(height: 20),
-                            GestureDetector(
-                              onTap: () => _setVolume(volume - 1),
-                              child: CustomContainer(
-                                width: screenWidth * 0.13,
-                                height: 25,
-                                child: Icon(CustomIcons.minus, size: 4),
+                              SizedBox(height: 20),
+                              GestureDetector(
+                                onTap: () => _setVolume(volume - 1),
+                                child: CustomContainer(
+                                  width: screenWidth * 0.13,
+                                  height: 25,
+                                  child: Icon(CustomIcons.minus, size: 4),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
             ),
           ),
         );

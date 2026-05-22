@@ -49,7 +49,8 @@ class CreateMusicJamTile extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar', style: TextStyle(color: Colors.white70)),
+            child:
+                const Text('Cancelar', style: TextStyle(color: Colors.white70)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -102,15 +103,18 @@ class CreateMusicJamTile extends StatelessWidget {
                   const SizedBox(height: 20),
                   ListTile(
                     leading: const Icon(CustomIcons.jam, color: Colors.white),
-                    title: const Text('Criar MusicJam', style: TextStyle(color: Colors.white)),
+                    title: const Text('Criar MusicJam',
+                        style: TextStyle(color: Colors.white)),
                     onTap: () {
                       Navigator.pop(sheetCtx);
                       _onCreate(context);
                     },
                   ),
                   ListTile(
-                    leading: const Icon(CustomIcons.connect, color: Colors.white),
-                    title: const Text('Entrar em MusicJam', style: TextStyle(color: Colors.white)),
+                    leading:
+                        const Icon(CustomIcons.connect, color: Colors.white),
+                    title: const Text('Entrar em MusicJam',
+                        style: TextStyle(color: Colors.white)),
                     onTap: () {
                       Navigator.pop(sheetCtx);
                       _onJoin(context);
@@ -188,8 +192,7 @@ class CreateMusicJamTile extends StatelessWidget {
                     for (int i = 0; i < visibleCount; i++)
                       Positioned(
                         left: i * 24.0,
-                        child: _buildAvatar(
-                            context, participants[i], 34),
+                        child: _buildAvatar(context, participants[i], 34),
                       ),
                     if (extraCount > 0)
                       Positioned(
@@ -211,8 +214,7 @@ class CreateMusicJamTile extends StatelessWidget {
                             child: Text(
                               '+$extraCount',
                               style: TextStyle(
-                                color:
-                                    Theme.of(context).colorScheme.onPrimary,
+                                color: Theme.of(context).colorScheme.onPrimary,
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -231,7 +233,8 @@ class CreateMusicJamTile extends StatelessWidget {
 
   Widget _buildAvatar(
       BuildContext context, Map<String, dynamic> participant, double size) {
-    final avatarUrl = ApiConfig.fixImageUrl(participant['avatarUrl'] as String?);
+    final avatarUrl =
+        ApiConfig.fixImageUrl(participant['avatarUrl'] as String?);
     final primary = Theme.of(context).colorScheme.primary;
     return Container(
       width: size,
@@ -252,19 +255,19 @@ class CreateMusicJamTile extends StatelessWidget {
                 fadeOutDuration: Duration.zero,
                 placeholder: (_, __) => Container(
                   color: primary,
-                  child: const Icon(Icons.person,
-                      color: Colors.white54, size: 16),
+                  child:
+                      const Icon(Icons.person, color: Colors.white54, size: 16),
                 ),
                 errorWidget: (_, __, ___) => Container(
                   color: primary,
-                  child: const Icon(Icons.person,
-                      color: Colors.white54, size: 16),
+                  child:
+                      const Icon(Icons.person, color: Colors.white54, size: 16),
                 ),
               )
             : Container(
                 color: primary,
-                child: const Icon(Icons.person,
-                    color: Colors.white54, size: 16),
+                child:
+                    const Icon(Icons.person, color: Colors.white54, size: 16),
               ),
       ),
     );
@@ -313,7 +316,12 @@ class CreateMusicJamTile extends StatelessWidget {
             children: [
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                    width: 2,
+                  ),
                   shape: CircleBorder(),
                   padding: EdgeInsets.all(0),
                   minimumSize: Size(50, 50),
@@ -322,7 +330,7 @@ class CreateMusicJamTile extends StatelessWidget {
                 child: Icon(
                   CustomIcons.plus_thick,
                   size: 30,
-                  color: Theme.of(context).colorScheme.onPrimary,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
               SizedBox(height: 10),

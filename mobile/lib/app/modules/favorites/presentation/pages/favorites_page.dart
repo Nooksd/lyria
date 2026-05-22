@@ -201,8 +201,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     icon: Icon(CustomIcons.play, size: 16),
                     label: const Text("Tocar"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: primary,
-                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
+                      foregroundColor: primary,
+                      side: BorderSide(color: primary),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25),
                       ),
@@ -216,6 +218,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     icon: Icon(CustomIcons.shuffle, size: 16),
                     label: const Text("Aleatório"),
                     style: OutlinedButton.styleFrom(
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
                       foregroundColor: primary,
                       side: BorderSide(color: primary),
                       shape: RoundedRectangleBorder(

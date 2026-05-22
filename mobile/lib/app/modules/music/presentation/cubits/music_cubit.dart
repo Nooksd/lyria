@@ -73,6 +73,14 @@ class MusicCubit extends Cubit<MusicState> {
     await _musicService.removeFromQueue(index);
   }
 
+  Future<void> moveQueueItem(int oldIndex, int newIndex) async {
+    await _musicService.moveQueueItem(oldIndex, newIndex);
+  }
+
+  Future<void> moveQueueItemNext(int index) async {
+    await _musicService.moveQueueItemNext(index);
+  }
+
   Future<void> clearQueue() async {
     await _musicService.clearQueue();
   }

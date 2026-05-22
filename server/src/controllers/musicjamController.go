@@ -57,6 +57,21 @@ type SyncPayload struct {
 	Participants []model.Participant `json:"participants"`
 }
 
+func nowMillis() int64 {
+	return time.Now().UnixNano() / int64(time.Millisecond)
+}
+
+func stampedPayload(raw json.RawMessage, delayMs int64) gin.H {
+	var payload gin.H
+	if err := json.Unmarshal(raw, &payload); err != nil || payload == nil {
+		payload = gin.H{}
+	}
+	now := nowMillis()
+	payload["serverTime"] = now
+	payload["effectiveAt"] = now + delayMs
+	return payload
+}
+
 func generateSimpleID() string {
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -329,6 +344,15 @@ func MusicJamWebSocket() gin.HandlerFunc {
 					Participants: jam.Participants,
 				},
 			})
+			var syncData gin.H
+			if err := json.Unmarshal(syncMsg, &syncData); err == nil {
+				if payload, ok := syncData["payload"].(map[string]interface{}); ok {
+					now := nowMillis()
+					payload["serverTime"] = now
+					payload["effectiveAt"] = now
+				}
+				syncMsg, _ = json.Marshal(syncData)
+			}
 			client.Send <- syncMsg
 		}
 	}
@@ -347,6 +371,14 @@ func handleJamMessage(client *websocketmanager.Client, message []byte) {
 	filter := bson.M{"simpleId": client.SimpleID}
 
 	switch msg.Type {
+	case "clock_ping":
+		payload := stampedPayload(msg.Payload, 0)
+		pong, _ := json.Marshal(gin.H{
+			"type":    "clock_pong",
+			"payload": payload,
+		})
+		client.Send <- pong
+
 	case "play":
 		var payload PlayPayload
 		if err := json.Unmarshal(msg.Payload, &payload); err != nil {
@@ -370,7 +402,7 @@ func handleJamMessage(client *websocketmanager.Client, message []byte) {
 
 		broadcast, _ := json.Marshal(gin.H{
 			"type":    "play",
-			"payload": payload,
+			"payload": stampedPayload(msg.Payload, 220),
 			"userId":  client.UserID,
 		})
 		websocketmanager.BroadcastToRoom(client.SimpleID, broadcast, client)
@@ -387,7 +419,7 @@ func handleJamMessage(client *websocketmanager.Client, message []byte) {
 
 		broadcast, _ := json.Marshal(gin.H{
 			"type":    "pause",
-			"payload": payload,
+			"payload": stampedPayload(msg.Payload, 180),
 			"userId":  client.UserID,
 		})
 		websocketmanager.BroadcastToRoom(client.SimpleID, broadcast, client)
@@ -405,7 +437,7 @@ func handleJamMessage(client *websocketmanager.Client, message []byte) {
 
 		broadcast, _ := json.Marshal(gin.H{
 			"type":    "seek",
-			"payload": payload,
+			"payload": stampedPayload(msg.Payload, 220),
 			"userId":  client.UserID,
 		})
 		websocketmanager.BroadcastToRoom(client.SimpleID, broadcast, client)
@@ -446,14 +478,14 @@ func handleJamMessage(client *websocketmanager.Client, message []byte) {
 	case "set_queue":
 		broadcast, _ := json.Marshal(gin.H{
 			"type":    "set_queue",
-			"payload": json.RawMessage(msg.Payload),
+			"payload": stampedPayload(msg.Payload, 450),
 		})
 		websocketmanager.BroadcastToRoom(client.SimpleID, broadcast, client)
 
 	case "sync_state":
 		broadcast, _ := json.Marshal(gin.H{
 			"type":    "sync_state",
-			"payload": json.RawMessage(msg.Payload),
+			"payload": stampedPayload(msg.Payload, 450),
 		})
 		websocketmanager.BroadcastToRoom(client.SimpleID, broadcast, client)
 
@@ -470,7 +502,7 @@ func handleJamMessage(client *websocketmanager.Client, message []byte) {
 
 		broadcast, _ := json.Marshal(gin.H{
 			"type":    "position_sync",
-			"payload": payload,
+			"payload": stampedPayload(msg.Payload, 0),
 			"userId":  client.UserID,
 		})
 		websocketmanager.BroadcastToRoom(client.SimpleID, broadcast, client)
@@ -478,7 +510,7 @@ func handleJamMessage(client *websocketmanager.Client, message []byte) {
 	case "skip_to":
 		broadcast, _ := json.Marshal(gin.H{
 			"type":    "skip_to",
-			"payload": json.RawMessage(msg.Payload),
+			"payload": stampedPayload(msg.Payload, 220),
 		})
 		websocketmanager.BroadcastToRoom(client.SimpleID, broadcast, client)
 

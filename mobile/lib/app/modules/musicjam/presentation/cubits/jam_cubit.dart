@@ -16,12 +16,14 @@ class JamState {
   final String? simpleId;
   final List<Map<String, dynamic>> participants;
   final bool isConnecting;
+  final int? latencyMs;
 
   const JamState({
     this.isInJam = false,
     this.simpleId,
     this.participants = const [],
     this.isConnecting = false,
+    this.latencyMs,
   });
 
   JamState copyWith({
@@ -29,12 +31,14 @@ class JamState {
     String? simpleId,
     List<Map<String, dynamic>>? participants,
     bool? isConnecting,
+    int? latencyMs,
   }) {
     return JamState(
       isInJam: isInJam ?? this.isInJam,
       simpleId: simpleId ?? this.simpleId,
       participants: participants ?? this.participants,
       isConnecting: isConnecting ?? this.isConnecting,
+      latencyMs: latencyMs ?? this.latencyMs,
     );
   }
 }
@@ -48,10 +52,13 @@ class JamCubit extends Cubit<JamState> {
   StreamSubscription? _playbackSub;
   StreamSubscription? _musicStateSub;
   Timer? _positionSyncTimer;
+  Timer? _clockSyncTimer;
   bool _suppressBroadcast = false;
   bool? _lastKnownPlaying;
   List<String>? _lastKnownQueueIds;
   int? _lastKnownIndex;
+  double _clockOffsetMs = 0;
+  int? _bestRttMs;
 
   JamCubit({
     required MusicCubit musicCubit,
@@ -106,8 +113,8 @@ class JamCubit extends Cubit<JamState> {
 
   Future<void> _connectWebSocket(String simpleId) async {
     final token = await _storage.get('accessToken');
-    final uri = Uri.parse(
-        '${ApiConfig.wsUrl}/musicjam/ws/$simpleId?token=$token');
+    final uri =
+        Uri.parse('${ApiConfig.wsUrl}/musicjam/ws/$simpleId?token=$token');
 
     try {
       _channel = WebSocketChannel.connect(uri);
@@ -127,10 +134,26 @@ class JamCubit extends Cubit<JamState> {
           debugPrint('WS error: $e');
         },
       );
+      _startClockSync();
       _setupOutgoingBroadcast();
     } catch (e) {
       debugPrint('Error connecting WS: $e');
     }
+  }
+
+  void _startClockSync() {
+    _clockSyncTimer?.cancel();
+    _sendClockPing();
+    _clockSyncTimer = Timer.periodic(
+      const Duration(seconds: 10),
+      (_) => _sendClockPing(),
+    );
+  }
+
+  void _sendClockPing() {
+    _sendMessage('clock_ping', {
+      'clientSentAt': DateTime.now().millisecondsSinceEpoch,
+    });
   }
 
   void _setupOutgoingBroadcast() {
@@ -138,7 +161,7 @@ class JamCubit extends Cubit<JamState> {
     _musicStateSub?.cancel();
     _positionSyncTimer?.cancel();
 
-    _positionSyncTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _positionSyncTimer = Timer.periodic(const Duration(seconds: 2), (_) {
       if (!state.isInJam || _suppressBroadcast) return;
       final musicState = _musicCubit.state;
       if (musicState is MusicPlaying && musicState.isPlaying) {
@@ -202,6 +225,11 @@ class JamCubit extends Cubit<JamState> {
     final type = msg['type'] as String?;
     final payload = msg['payload'] as Map<String, dynamic>? ?? {};
 
+    if (type == 'clock_pong') {
+      _handleClockPong(payload);
+      return;
+    }
+
     _suppressBroadcast = true;
 
     switch (type) {
@@ -212,11 +240,10 @@ class JamCubit extends Cubit<JamState> {
         emit(state.copyWith(participants: participants));
 
         final playing = payload['playing'] as bool? ?? false;
-        final pos = (payload['position'] as num?)?.toDouble() ?? 0;
+        final pos = _positionFromPayload(payload, playing: playing);
         _lastKnownPlaying = playing;
         if (pos > 0) {
-          _musicCubit.seekTo(
-              Duration(milliseconds: (pos * 1000).toInt()));
+          _musicCubit.seekTo(Duration(milliseconds: (pos * 1000).toInt()));
         }
         if (playing) {
           _musicCubit.play();
@@ -228,9 +255,8 @@ class JamCubit extends Cubit<JamState> {
             .map((m) => Music.fromJson(Map<String, dynamic>.from(m)))
             .toList();
         final currentIndex = payload['currentIndex'] as int? ?? 0;
-        final position =
-            (payload['position'] as num?)?.toDouble() ?? 0;
         final playing = payload['playing'] as bool? ?? true;
+        final position = _positionFromPayload(payload, playing: playing);
 
         if (queueData.isNotEmpty) {
           final queueIds = queueData.map((m) => m.id).toList();
@@ -241,13 +267,11 @@ class JamCubit extends Cubit<JamState> {
           _lastKnownQueueIds = queueIds;
           _lastKnownIndex = currentIndex;
           _lastKnownPlaying = playing;
-          _musicCubit
-              .setQueue(queueData, currentIndex, null)
-              .then((_) {
+          _musicCubit.setQueue(queueData, currentIndex, null).then((_) {
             Future.delayed(const Duration(milliseconds: 300), () {
               if (position > 0) {
-                _musicCubit.seekTo(Duration(
-                    milliseconds: (position * 1000).toInt()));
+                _musicCubit
+                    .seekTo(Duration(milliseconds: (position * 1000).toInt()));
               }
               if (!playing) {
                 _musicCubit.pause();
@@ -258,25 +282,31 @@ class JamCubit extends Cubit<JamState> {
         break;
 
       case 'play':
-        final pos = (payload['position'] as num?)?.toDouble() ?? 0;
         _lastKnownPlaying = true;
-        _musicCubit
-            .seekTo(Duration(milliseconds: (pos * 1000).toInt()));
-        _musicCubit.play();
+        _runAtEffective(payload, () async {
+          final pos = _positionFromPayload(payload, playing: true);
+          await _musicCubit
+              .seekTo(Duration(milliseconds: (pos * 1000).toInt()));
+          await _musicCubit.play();
+        });
         break;
 
       case 'pause':
-        final pos = (payload['position'] as num?)?.toDouble() ?? 0;
         _lastKnownPlaying = false;
-        _musicCubit
-            .seekTo(Duration(milliseconds: (pos * 1000).toInt()));
-        _musicCubit.pause();
+        _runAtEffective(payload, () async {
+          final pos = _positionFromPayload(payload, playing: false);
+          await _musicCubit
+              .seekTo(Duration(milliseconds: (pos * 1000).toInt()));
+          await _musicCubit.pause();
+        });
         break;
 
       case 'seek':
-        final pos = (payload['position'] as num?)?.toDouble() ?? 0;
-        _musicCubit
-            .seekTo(Duration(milliseconds: (pos * 1000).toInt()));
+        _runAtEffective(payload, () async {
+          final pos = _positionFromPayload(payload, playing: false);
+          await _musicCubit
+              .seekTo(Duration(milliseconds: (pos * 1000).toInt()));
+        });
         break;
 
       case 'skip_to':
@@ -302,16 +332,15 @@ class JamCubit extends Cubit<JamState> {
             .map((m) => Music.fromJson(Map<String, dynamic>.from(m)))
             .toList();
         final currentIndex = payload['currentIndex'] as int? ?? 0;
-        final position =
-            (payload['position'] as num?)?.toDouble() ?? 0;
         final playing = payload['playing'] as bool? ?? true;
+        final position = _positionFromPayload(payload, playing: playing);
 
         if (queueData.isNotEmpty) {
           final queueIds = queueData.map((m) => m.id).toList();
           if (listEquals(queueIds, _lastKnownQueueIds)) {
             if (position > 0) {
-              _musicCubit.seekTo(Duration(
-                  milliseconds: (position * 1000).toInt()));
+              _musicCubit
+                  .seekTo(Duration(milliseconds: (position * 1000).toInt()));
             }
             _unsuppress();
             break;
@@ -319,13 +348,11 @@ class JamCubit extends Cubit<JamState> {
           _lastKnownQueueIds = queueIds;
           _lastKnownIndex = currentIndex;
           _lastKnownPlaying = playing;
-          _musicCubit
-              .setQueue(queueData, currentIndex, null)
-              .then((_) {
+          _musicCubit.setQueue(queueData, currentIndex, null).then((_) {
             Future.delayed(const Duration(milliseconds: 300), () {
               if (position > 0) {
-                _musicCubit.seekTo(Duration(
-                    milliseconds: (position * 1000).toInt()));
+                _musicCubit
+                    .seekTo(Duration(milliseconds: (position * 1000).toInt()));
               }
               if (!playing) {
                 _musicCubit.pause();
@@ -336,12 +363,10 @@ class JamCubit extends Cubit<JamState> {
         break;
 
       case 'position_sync':
-        final pos = (payload['position'] as num?)?.toDouble() ?? 0;
-        final currentPos =
-            _musicCubit.currentPosition.inMilliseconds / 1000.0;
-        if ((pos - currentPos).abs() > 2.0) {
-          _musicCubit
-              .seekTo(Duration(milliseconds: (pos * 1000).toInt()));
+        final pos = _positionFromPayload(payload, playing: true);
+        final currentPos = _musicCubit.currentPosition.inMilliseconds / 1000.0;
+        if ((pos - currentPos).abs() > 0.35) {
+          _musicCubit.seekTo(Duration(milliseconds: (pos * 1000).toInt()));
         }
         break;
 
@@ -362,8 +387,7 @@ class JamCubit extends Cubit<JamState> {
       Future.delayed(const Duration(milliseconds: 500), () {
         final curState = _musicCubit.state;
         if (curState is MusicPlaying) {
-          final pos =
-              _musicCubit.currentPosition.inMilliseconds / 1000.0;
+          final pos = _musicCubit.currentPosition.inMilliseconds / 1000.0;
           _sendMessage('sync_state', {
             'queue': curState.queue.map((m) => m.toJson()).toList(),
             'currentIndex': curState.currentIndex,
@@ -376,14 +400,66 @@ class JamCubit extends Cubit<JamState> {
   }
 
   void _unsuppress() {
-    Future.delayed(const Duration(milliseconds: 800), () {
+    Future.delayed(const Duration(milliseconds: 450), () {
       _suppressBroadcast = false;
+    });
+  }
+
+  void _handleClockPong(Map<String, dynamic> payload) {
+    final sentAt = (payload['clientSentAt'] as num?)?.toInt();
+    final serverTime = (payload['serverTime'] as num?)?.toDouble();
+    if (sentAt == null || serverTime == null) return;
+
+    final receivedAt = DateTime.now().millisecondsSinceEpoch;
+    final rtt = receivedAt - sentAt;
+    final midpoint = sentAt + (rtt / 2);
+    final offset = serverTime - midpoint;
+
+    if (_bestRttMs == null || rtt <= (_bestRttMs! + 20)) {
+      _bestRttMs = rtt;
+      _clockOffsetMs = (_clockOffsetMs * 0.7) + (offset * 0.3);
+      emit(state.copyWith(latencyMs: rtt));
+    }
+  }
+
+  double _serverNowMs() {
+    return DateTime.now().millisecondsSinceEpoch + _clockOffsetMs;
+  }
+
+  double _positionFromPayload(
+    Map<String, dynamic> payload, {
+    required bool playing,
+  }) {
+    final position = (payload['position'] as num?)?.toDouble() ?? 0;
+    if (!playing) return position;
+
+    final effectiveAt = (payload['effectiveAt'] as num?)?.toDouble();
+    if (effectiveAt == null) return position;
+
+    final elapsedMs = _serverNowMs() - effectiveAt;
+    if (elapsedMs <= 0) return position;
+    return position + (elapsedMs / 1000.0);
+  }
+
+  void _runAtEffective(
+    Map<String, dynamic> payload,
+    Future<void> Function() action,
+  ) {
+    final effectiveAt = (payload['effectiveAt'] as num?)?.toDouble();
+    final delayMs =
+        effectiveAt == null ? 0 : (effectiveAt - _serverNowMs()).round();
+    Future.delayed(Duration(milliseconds: delayMs > 0 ? delayMs : 0), () {
+      action();
     });
   }
 
   void _sendMessage(String type, Map<String, dynamic> payload) {
     if (_channel == null) return;
     try {
+      payload.putIfAbsent(
+        'clientSentAt',
+        () => DateTime.now().millisecondsSinceEpoch,
+      );
       _channel!.sink.add(jsonEncode({
         'type': type,
         'payload': payload,
@@ -399,9 +475,11 @@ class JamCubit extends Cubit<JamState> {
     _playbackSub?.cancel();
     _musicStateSub?.cancel();
     _positionSyncTimer?.cancel();
+    _clockSyncTimer?.cancel();
     _playbackSub = null;
     _musicStateSub = null;
     _positionSyncTimer = null;
+    _clockSyncTimer = null;
 
     try {
       _channel?.sink.close();
@@ -411,6 +489,8 @@ class JamCubit extends Cubit<JamState> {
     _lastKnownPlaying = null;
     _lastKnownQueueIds = null;
     _lastKnownIndex = null;
+    _bestRttMs = null;
+    _clockOffsetMs = 0;
     _suppressBroadcast = false;
 
     emit(const JamState());
@@ -427,6 +507,7 @@ class JamCubit extends Cubit<JamState> {
     _playbackSub?.cancel();
     _musicStateSub?.cancel();
     _positionSyncTimer?.cancel();
+    _clockSyncTimer?.cancel();
     try {
       _channel?.sink.close();
     } catch (_) {}

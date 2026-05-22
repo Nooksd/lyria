@@ -101,6 +101,7 @@ export default function Musics() {
       } else {
         await api.put(`/admin/music/update/${editId}`, {
           name: form.name,
+          url: form.url.trim(),
           artistId: form.artistId,
           albumId: form.albumId,
           genre: form.genre,
@@ -209,10 +210,10 @@ export default function Musics() {
                   <label>Nome</label>
                   <input className="form-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required placeholder="Nome da música" />
                 </div>
-                {modal === 'create' && (
+                {(modal === 'create' || modal === 'edit') && (
                   <div className="form-group">
                     <label>URL do YouTube</label>
-                    <input className="form-input" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} required placeholder="https://youtube.com/watch?v=..." />
+                    <input className="form-input" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} required={modal === 'create'} placeholder="https://youtube.com/watch?v=..." />
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>O áudio será baixado automaticamente via yt-dlp</span>
                   </div>
                 )}
@@ -242,7 +243,7 @@ export default function Musics() {
               <div className="modal-footer">
                 <button type="button" className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? (modal === 'create' ? 'Baixando...' : 'Salvando...') : modal === 'create' ? 'Criar' : 'Salvar'}
+                  {saving ? (form.url.trim() ? 'Baixando...' : 'Salvando...') : modal === 'create' ? 'Criar' : 'Salvar'}
                 </button>
               </div>
             </form>

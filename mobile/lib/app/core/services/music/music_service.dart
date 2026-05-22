@@ -32,7 +32,10 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   String? _lastTrackedMusicId;
 
-  MusicService({required this.storage, required this.downloadService, required this.httpClient}) {
+  MusicService(
+      {required this.storage,
+      required this.downloadService,
+      required this.httpClient}) {
     _init();
   }
 
@@ -124,6 +127,22 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> removeFromQueue(int index) async {
     if (index < 0 || index >= _playlist.children.length) return;
     await _playlist.removeAt(index);
+  }
+
+  Future<void> moveQueueItem(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _playlist.children.length) return;
+    final safeNewIndex =
+        newIndex.clamp(0, _playlist.children.length - 1).toInt();
+    if (oldIndex == safeNewIndex) return;
+    await _playlist.move(oldIndex, safeNewIndex);
+  }
+
+  Future<void> moveQueueItemNext(int index) async {
+    final current = _audioPlayer.currentIndex ?? 0;
+    if (index == current) return;
+    final target =
+        (current + 1).clamp(0, _playlist.children.length - 1).toInt();
+    await moveQueueItem(index, target);
   }
 
   Future<void> toggleLoop() async {

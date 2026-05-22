@@ -30,8 +30,19 @@ class _PlaylistMusicsBuilderState extends State<PlaylistMusicsBuilder> {
   final MusicCubit musicCubit = getIt<MusicCubit>();
   final DownloadCubit downloadCubit = getIt<DownloadCubit>();
 
-  void _playPlaylistFromIndex(int index) {
-    musicCubit.setQueue(widget.musics, index, widget.playlistId);
+  void _playPlaylistFromIndex(int index, bool isOnline) {
+    final music = widget.musics[index];
+    if (!_isMusicAvailable(music, isOnline)) return;
+    final playable = isOnline
+        ? widget.musics
+        : widget.musics
+            .where(
+                (m) => downloadCubit.state[m.id] == DownloadStatus.downloaded)
+            .toList();
+    final playableIndex = playable.indexWhere((m) => m.id == music.id);
+    if (playableIndex >= 0) {
+      musicCubit.setQueue(playable, playableIndex, widget.playlistId);
+    }
   }
 
   bool _isMusicAvailable(Music music, bool isOnline) {
@@ -90,7 +101,7 @@ class _PlaylistMusicsBuilderState extends State<PlaylistMusicsBuilder> {
                   image: music.coverUrl,
                   isRound: false,
                   enabled: available,
-                  onTap: () => _playPlaylistFromIndex(index),
+                  onTap: () => _playPlaylistFromIndex(index, isOnline),
                   trailing: IconButton(
                     onPressed: available
                         ? () => _showMusicOptions(context, music)

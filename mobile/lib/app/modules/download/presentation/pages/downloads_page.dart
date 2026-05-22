@@ -134,9 +134,11 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 icon: Icon(CustomIcons.play, size: 16),
                                 label: const Text("Tocar"),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: primary,
-                                  foregroundColor:
-                                      Theme.of(context).colorScheme.onPrimary,
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
+                                  foregroundColor: primary,
+                                  side: BorderSide(color: primary),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(25),
                                   ),
@@ -150,6 +152,9 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 icon: Icon(CustomIcons.shuffle, size: 16),
                                 label: const Text("Aleatório"),
                                 style: OutlinedButton.styleFrom(
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer,
                                   foregroundColor: primary,
                                   side: BorderSide(color: primary),
                                   shape: RoundedRectangleBorder(
@@ -171,8 +176,8 @@ class _DownloadsPageState extends State<DownloadsPage> {
                                 subtitle: music.artistName,
                                 image: music.coverUrl,
                                 isRound: false,
-                                onTap: () => musicCubit.setQueue(
-                                    downloads, index, null),
+                                onTap: () =>
+                                    musicCubit.setQueue(downloads, index, null),
                                 onLongPress: () =>
                                     showMusicOptionsSheet(context, music),
                                 trailing: IconButton(

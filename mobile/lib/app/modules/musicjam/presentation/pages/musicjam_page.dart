@@ -1,4 +1,4 @@
-﻿import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -64,8 +64,8 @@ class MusicJamPage extends StatelessWidget {
                 onTap: () => _copyCode(context, simpleId),
                 child: Container(
                   margin: const EdgeInsets.only(right: 16),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(20),
@@ -95,6 +95,57 @@ class MusicJamPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 24),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.graphic_eq,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Jam ${simpleId.toUpperCase()}',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              jamState.latencyMs == null
+                                  ? '${participants.length} participante${participants.length != 1 ? 's' : ''}'
+                                  : '${participants.length} participante${participants.length != 1 ? 's' : ''} - latencia ${jamState.latencyMs} ms',
+                              style: TextStyle(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurface
+                                    .withValues(alpha: 0.65),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
                 const Text(
                   "Participantes",
                   style: TextStyle(
@@ -116,8 +167,8 @@ class MusicJamPage extends StatelessWidget {
                           itemCount: participants.length,
                           itemBuilder: (context, index) {
                             final p = participants[index];
-                            final avatarUrl =
-                                ApiConfig.fixImageUrl(p['avatarUrl'] as String?);
+                            final avatarUrl = ApiConfig.fixImageUrl(
+                                p['avatarUrl'] as String?);
                             final name = (p['name'] as String?) ?? '';
 
                             return Padding(
@@ -136,21 +187,16 @@ class MusicJamPage extends StatelessWidget {
                                               fadeInDuration: Duration.zero,
                                               fadeOutDuration: Duration.zero,
                                               placeholder: (_, __) =>
-                                                  const Icon(
-                                                    Icons.person,
-                                                    color: Colors.white54,
-                                                    size: 24),
-                                              errorWidget:
-                                                  (_, __, ___) =>
-                                                      const Icon(
-                                                    Icons.person,
-                                                    color: Colors.white54,
-                                                    size: 24),
+                                                  const Icon(Icons.person,
+                                                      color: Colors.white54,
+                                                      size: 24),
+                                              errorWidget: (_, __, ___) =>
+                                                  const Icon(Icons.person,
+                                                      color: Colors.white54,
+                                                      size: 24),
                                             )
-                                          : const Icon(
-                                              Icons.person,
-                                              color: Colors.white54,
-                                              size: 24),
+                                          : const Icon(Icons.person,
+                                              color: Colors.white54, size: 24),
                                     ),
                                   ),
                                   const SizedBox(width: 12),
@@ -170,10 +216,9 @@ class MusicJamPage extends StatelessWidget {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 8, vertical: 2),
                                       decoration: BoxDecoration(
-                                        color: Colors.white
-                                            .withValues(alpha: 0.1),
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        color:
+                                            Colors.white.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: const Text(
                                         'Host',
@@ -198,8 +243,7 @@ class MusicJamPage extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade700,
                           foregroundColor: Colors.white,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),

@@ -6,6 +6,7 @@ import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/config/api_config.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/services/cache/favorites_cache.dart';
+import 'package:lyria/app/core/services/cache/offline_media_cache.dart';
 import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
@@ -28,11 +29,13 @@ class _AlbumPageState extends State<AlbumPage> {
   final MyHttpClient http = getIt<MyHttpClient>();
   final DownloadCubit downloadCubit = getIt<DownloadCubit>();
   final FavoritesCache favoritesCache = getIt<FavoritesCache>();
+  final OfflineMediaCache offlineCache = getIt<OfflineMediaCache>();
 
   Map<String, dynamic>? album;
   List<Music> musics = [];
   bool isLoading = true;
   bool isFavorite = false;
+  Set<String> downloadedIds = {};
 
   @override
   void initState() {
@@ -44,21 +47,50 @@ class _AlbumPageState extends State<AlbumPage> {
     try {
       final response = await http.get('/album/${widget.albumId}');
       if (response['status'] == 200) {
-        final data = response['data'];
-        setState(() {
-          album = data['album'];
-          album!['artistName'] = data['artistName'] ?? '';
-          musics = (data['musics'] as List? ?? [])
-              .map((m) => Music.fromJson(m))
-              .toList();
-          isLoading = false;
-        });
-        downloadCubit.loadPlaylistStatuses(musics.map((m) => m.id).toList());
+        final data = Map<String, dynamic>.from(response['data'] as Map);
+        await offlineCache.saveAlbum(widget.albumId, data);
+        await _applyAlbumData(data);
         await _loadFavoriteState();
+        return;
       }
     } catch (e) {
-      setState(() => isLoading = false);
+      // Falls back to offline cache below.
     }
+
+    final cached = await offlineCache.getAlbum(widget.albumId);
+    final fallback = cached != null && await _hasDownloadedMusic(cached)
+        ? cached
+        : await offlineCache.buildAlbumFromDownloads(widget.albumId);
+    if (fallback != null) {
+      await _applyAlbumData(fallback);
+      await _loadFavoriteState();
+      return;
+    }
+
+    if (mounted) setState(() => isLoading = false);
+  }
+
+  Future<void> _applyAlbumData(Map<String, dynamic> data) async {
+    final loadedMusics = (data['musics'] as List? ?? [])
+        .map((m) => Music.fromJson(Map<String, dynamic>.from(m as Map)))
+        .toList();
+    final ids = await offlineCache.getDownloadedIds();
+    if (!mounted) return;
+    setState(() {
+      album = Map<String, dynamic>.from(data['album'] as Map? ?? {});
+      album!['artistName'] = data['artistName'] ?? album!['artistName'] ?? '';
+      musics = loadedMusics;
+      downloadedIds = ids;
+      isLoading = false;
+    });
+    downloadCubit.loadPlaylistStatuses(musics.map((m) => m.id).toList());
+  }
+
+  Future<bool> _hasDownloadedMusic(Map<String, dynamic> data) async {
+    final cachedMusics = (data['musics'] as List? ?? [])
+        .map((m) => Music.fromJson(Map<String, dynamic>.from(m as Map)))
+        .toList();
+    return offlineCache.hasDownloadedMusic(cachedMusics);
   }
 
   Future<void> _loadFavoriteState() async {
@@ -98,7 +130,24 @@ class _AlbumPageState extends State<AlbumPage> {
 
   bool _isMusicAvailable(Music music, bool isOnline) {
     final status = downloadCubit.state[music.id];
-    return isOnline || status == DownloadStatus.downloaded;
+    return isOnline ||
+        downloadedIds.contains(music.id) ||
+        status == DownloadStatus.downloaded;
+  }
+
+  List<Music> _playableMusics(bool isOnline) {
+    if (isOnline) return musics;
+    return musics.where((music) => _isMusicAvailable(music, isOnline)).toList();
+  }
+
+  void _playFromIndex(int index, bool isOnline) {
+    final music = musics[index];
+    if (!_isMusicAvailable(music, isOnline)) return;
+    final playable = _playableMusics(isOnline);
+    final playableIndex = playable.indexWhere((item) => item.id == music.id);
+    if (playableIndex >= 0) {
+      musicCubit.setQueue(playable, playableIndex, null);
+    }
   }
 
   @override
@@ -226,7 +275,7 @@ class _AlbumPageState extends State<AlbumPage> {
                                   const SizedBox(height: 4),
                                   GestureDetector(
                                     onTap: () {
-                                      if (artistId.isNotEmpty && isOnline) {
+                                      if (artistId.isNotEmpty) {
                                         context.push('/auth/ui/artist',
                                             extra: artistId);
                                       }
@@ -264,22 +313,23 @@ class _AlbumPageState extends State<AlbumPage> {
                                 if (musics.isNotEmpty) {
                                   final playable = isOnline
                                       ? musics
-                                      : musics
-                                          .where((m) =>
-                                              _isMusicAvailable(m, isOnline))
-                                          .toList();
+                                      : _playableMusics(isOnline);
                                   if (playable.isNotEmpty) {
                                     musicCubit.setQueue(playable, 0, null);
                                   }
                                 }
                               },
                               style: IconButton.styleFrom(
-                                backgroundColor:
-                                    Theme.of(context).colorScheme.primary,
+                                backgroundColor: Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer,
+                                side: BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                               ),
                               icon: Icon(
                                 Icons.play_arrow,
-                                color: Theme.of(context).colorScheme.onPrimary,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                           ),
@@ -292,10 +342,7 @@ class _AlbumPageState extends State<AlbumPage> {
                                 if (musics.isNotEmpty) {
                                   final playable = isOnline
                                       ? musics
-                                      : musics
-                                          .where((m) =>
-                                              _isMusicAvailable(m, isOnline))
-                                          .toList();
+                                      : _playableMusics(isOnline);
                                   if (playable.isNotEmpty) {
                                     final shuffled = List<Music>.from(playable)
                                       ..shuffle();
@@ -306,8 +353,10 @@ class _AlbumPageState extends State<AlbumPage> {
                               style: IconButton.styleFrom(
                                 backgroundColor: Theme.of(context)
                                     .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.2),
+                                    .primaryContainer,
+                                side: BorderSide(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                               ),
                               icon: Icon(
                                 Icons.shuffle,
@@ -347,8 +396,7 @@ class _AlbumPageState extends State<AlbumPage> {
                             image: music.coverUrl,
                             isRound: false,
                             enabled: available,
-                            onTap: () =>
-                                musicCubit.setQueue(musics, index, null),
+                            onTap: () => _playFromIndex(index, isOnline),
                             onLongPress: () =>
                                 showMusicOptionsSheet(context, music),
                             trailing: null,
@@ -421,10 +469,11 @@ class _AlbumDownloadButton extends StatelessWidget {
                     ? null
                     : () => downloadCubit.downloadPlaylist(musics),
                 style: IconButton.styleFrom(
-                  backgroundColor: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.2),
+                  backgroundColor:
+                      Theme.of(context).colorScheme.primaryContainer,
+                  side: BorderSide(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 icon: Icon(
                   Icons.download,
