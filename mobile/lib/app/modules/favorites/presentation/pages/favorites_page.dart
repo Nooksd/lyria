@@ -5,6 +5,7 @@ import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/connectivity/connectivity_cubit.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/core/services/cache/favorites_cache.dart';
+import 'package:lyria/app/core/services/cache/offline_media_cache.dart';
 import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
@@ -25,10 +26,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
   final MusicCubit musicCubit = getIt<MusicCubit>();
   final FavoritesCache favoritesCache = getIt<FavoritesCache>();
   final DownloadCubit downloadCubit = getIt<DownloadCubit>();
+  final OfflineMediaCache offlineCache = getIt<OfflineMediaCache>();
 
   List<Music> favorites = [];
   List<FavoriteAlbum> favoriteAlbums = [];
   List<FavoriteArtist> favoriteArtists = [];
+  Set<String> downloadedMusicIds = {};
+  Set<String> downloadedAlbumIds = {};
+  Set<String> downloadedArtistIds = {};
   bool isLoading = true;
 
   @override
@@ -50,6 +55,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           isLoading = false;
         });
       }
+      await _refreshDownloadedAvailability();
 
       final results = await Future.wait([
         favoritesCache.fetchAndCacheFavorites(),
@@ -63,11 +69,37 @@ class _FavoritesPageState extends State<FavoritesPage> {
           favoriteAlbums = results[1] as List<FavoriteAlbum>;
           favoriteArtists = results[2] as List<FavoriteArtist>;
         });
-        downloadCubit.loadPlaylistStatuses(favorites.map((m) => m.id).toList());
+        await _refreshDownloadedAvailability();
       }
     } catch (_) {
+      await _refreshDownloadedAvailability();
       if (mounted) setState(() => isLoading = false);
     }
+  }
+
+  Future<void> _refreshDownloadedAvailability() async {
+    final downloadedMusics = await offlineCache.getDownloadedMusics();
+    final musicIds = downloadedMusics.map((music) => music.id).toSet();
+    final albumIds = downloadedMusics
+        .map((music) => music.albumId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final artistIds = downloadedMusics
+        .map((music) => music.artistId)
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    await downloadCubit.loadPlaylistStatuses({
+      ...favorites.map((music) => music.id),
+      ...musicIds,
+    }.toList());
+
+    if (!mounted) return;
+    setState(() {
+      downloadedMusicIds = musicIds;
+      downloadedAlbumIds = albumIds;
+      downloadedArtistIds = artistIds;
+    });
   }
 
   Future<void> _toggleFavorite(int index) async {
@@ -95,7 +127,17 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   bool _isMusicAvailable(Music music, bool isOnline) {
     final status = downloadCubit.state[music.id];
-    return isOnline || status == DownloadStatus.downloaded;
+    return isOnline ||
+        downloadedMusicIds.contains(music.id) ||
+        status == DownloadStatus.downloaded;
+  }
+
+  bool _isAlbumAvailable(FavoriteAlbum album, bool isOnline) {
+    return isOnline || downloadedAlbumIds.contains(album.id);
+  }
+
+  bool _isArtistAvailable(FavoriteArtist artist, bool isOnline) {
+    return isOnline || downloadedArtistIds.contains(artist.id);
   }
 
   void _playAll(bool isOnline) {
@@ -114,6 +156,18 @@ class _FavoritesPageState extends State<FavoritesPage> {
     if (playable.isNotEmpty) {
       final shuffled = List<Music>.from(playable)..shuffle();
       musicCubit.setQueue(shuffled, 0, null);
+    }
+  }
+
+  void _playFavoriteFromIndex(int index, bool isOnline) {
+    final music = favorites[index];
+    if (!_isMusicAvailable(music, isOnline)) return;
+    final playable = isOnline
+        ? favorites
+        : favorites.where((m) => _isMusicAvailable(m, isOnline)).toList();
+    final playableIndex = playable.indexWhere((m) => m.id == music.id);
+    if (playableIndex >= 0) {
+      musicCubit.setQueue(playable, playableIndex, null);
     }
   }
 
@@ -201,10 +255,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     icon: Icon(CustomIcons.play, size: 16),
                     label: const Text("Tocar"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
-                      foregroundColor: primary,
-                      side: BorderSide(color: primary),
+                      backgroundColor: primary,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(25),
                       ),
@@ -218,8 +270,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     icon: Icon(CustomIcons.shuffle, size: 16),
                     label: const Text("Aleatório"),
                     style: OutlinedButton.styleFrom(
-                      backgroundColor:
-                          Theme.of(context).colorScheme.primaryContainer,
                       foregroundColor: primary,
                       side: BorderSide(color: primary),
                       shape: RoundedRectangleBorder(
@@ -245,7 +295,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
                   isRound: false,
                   enabled: available,
                   onTap: available
-                      ? () => musicCubit.setQueue(favorites, index, null)
+                      ? () => _playFavoriteFromIndex(index, isOnline)
                       : () {},
                   onLongPress: available
                       ? () => showMusicOptionsSheet(context, music)
@@ -295,6 +345,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
               final album = entry.value;
               final count =
                   album.musicCount > 0 ? album.musicCount : album.totalTracks;
+              final available = _isAlbumAvailable(album, isOnline);
 
               return MusicTile(
                 title: album.name,
@@ -302,8 +353,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     '${album.artistName}${count > 0 ? ' • $count música${count != 1 ? 's' : ''}' : ''}',
                 image: album.albumCoverUrl,
                 isRound: false,
-                enabled: isOnline,
-                onTap: isOnline
+                enabled: available,
+                onTap: available
                     ? () => context.push('/auth/ui/album', extra: album.id)
                     : () {},
                 onLongPress: () {},
@@ -349,6 +400,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
             ...favoriteArtists.asMap().entries.map((entry) {
               final index = entry.key;
               final artist = entry.value;
+              final available = _isArtistAvailable(artist, isOnline);
 
               return MusicTile(
                 title: artist.name,
@@ -356,8 +408,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
                     '${artist.albumCount} álbum${artist.albumCount != 1 ? 's' : ''} • ${artist.musicCount} música${artist.musicCount != 1 ? 's' : ''}',
                 image: artist.avatarUrl,
                 isRound: true,
-                enabled: isOnline,
-                onTap: isOnline
+                enabled: available,
+                onTap: available
                     ? () => context.push('/auth/ui/artist', extra: artist.id)
                     : () {},
                 onLongPress: () {},

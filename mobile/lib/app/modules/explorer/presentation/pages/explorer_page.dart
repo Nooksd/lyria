@@ -115,9 +115,8 @@ class _ExplorerPageState extends State<ExplorerPage> {
                     controller: searchController,
                     focusNode: searchFocus,
                     decoration: InputDecoration(
-                      hintText: isOnline
-                          ? 'Pesquisar'
-                          : 'Pesquisar músicas baixadas',
+                      hintText:
+                          isOnline ? 'Pesquisar' : 'Pesquisar músicas baixadas',
                       prefixIcon: GestureDetector(
                         onTap: () {
                           if (isSearchFocused) {
@@ -135,8 +134,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
                           color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-                      prefixIconConstraints:
-                          const BoxConstraints(minWidth: 60),
+                      prefixIconConstraints: const BoxConstraints(minWidth: 60),
                       suffixIcon: !isOnline
                           ? Padding(
                               padding: const EdgeInsets.only(right: 16),
@@ -165,8 +163,7 @@ class _ExplorerPageState extends State<ExplorerPage> {
                                 ),
                               ),
                             ),
-                      suffixIconConstraints:
-                          const BoxConstraints(minWidth: 40),
+                      suffixIconConstraints: const BoxConstraints(minWidth: 40),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(50),
                         borderSide: BorderSide(
@@ -207,23 +204,16 @@ class _ExplorerPageState extends State<ExplorerPage> {
                           },
                         )
                       : !isSearchFocused
-                      ? isOnline
                           ? CategoryInclude()
-                          : Opacity(
-                              opacity: 0.4,
-                              child: IgnorePointer(
-                                child: CategoryInclude(),
-                              ),
-                            )
-                      : SearchInclude(
-                          searches: searches,
-                          onRemove: (index) =>
-                              _removeHistory(searches[index]),
-                          isHistory: isHistory,
-                          addToHistory: (search) => {
-                            if (!isHistory) {_addToHistory(search)}
-                          },
-                        ),
+                          : SearchInclude(
+                              searches: searches,
+                              onRemove: (index) =>
+                                  _removeHistory(searches[index]),
+                              isHistory: isHistory,
+                              addToHistory: (search) => {
+                                if (!isHistory) {_addToHistory(search)}
+                              },
+                            ),
                 ),
               ],
             ),

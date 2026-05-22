@@ -30,6 +30,26 @@ class _PlaylistMusicsBuilderState extends State<PlaylistMusicsBuilder> {
   final MusicCubit musicCubit = getIt<MusicCubit>();
   final DownloadCubit downloadCubit = getIt<DownloadCubit>();
 
+  @override
+  void initState() {
+    super.initState();
+    _loadDownloadStatuses();
+  }
+
+  @override
+  void didUpdateWidget(covariant PlaylistMusicsBuilder oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.musics.length != widget.musics.length) {
+      _loadDownloadStatuses();
+    }
+  }
+
+  Future<void> _loadDownloadStatuses() async {
+    await downloadCubit.loadPlaylistStatuses(
+      widget.musics.map((music) => music.id).toList(),
+    );
+  }
+
   void _playPlaylistFromIndex(int index, bool isOnline) {
     final music = widget.musics[index];
     if (!_isMusicAvailable(music, isOnline)) return;

@@ -12,7 +12,7 @@
         android:usesCleartextTraffic="true">
         <meta-data android:name="android.app.foregroundServiceType" android:value="mediaPlayback"/>
         <activity
-            android:name="com.ryanheise.audioservice.AudioServiceActivity"
+            android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:theme="@style/LaunchTheme"

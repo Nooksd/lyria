@@ -36,7 +36,15 @@ class _PlaylistControlState extends State<PlaylistControl> {
   final SearchCubit searchCubit = getIt<SearchCubit>();
 
   void _playPlaylist() async {
-    await musicCubit.setQueue(widget.playlist.musics, 0, widget.playlist.id);
+    final isOnline = getIt<ConnectivityService>().isOnline;
+    final playable = isOnline
+        ? widget.playlist.musics
+        : widget.playlist.musics
+            .where((music) =>
+                downloadCubit.state[music.id] == DownloadStatus.downloaded)
+            .toList();
+    if (playable.isEmpty) return;
+    await musicCubit.setQueue(playable, 0, widget.playlist.id);
   }
 
   void _stopPlaylist() async {

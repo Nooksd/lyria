@@ -16,7 +16,8 @@ import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 
 class ArtistPage extends StatefulWidget {
   final String artistId;
-  const ArtistPage({super.key, required this.artistId});
+  final Music? seedMusic;
+  const ArtistPage({super.key, required this.artistId, this.seedMusic});
 
   @override
   State<ArtistPage> createState() => _ArtistPageState();
@@ -57,9 +58,12 @@ class _ArtistPageState extends State<ArtistPage> {
     }
 
     final cached = await offlineCache.getArtist(widget.artistId);
-    final fallback = cached != null && await _hasDownloadedMusic(cached)
-        ? cached
-        : await offlineCache.buildArtistFromDownloads(widget.artistId);
+    Map<String, dynamic>? fallback;
+    if (cached != null && await _hasDownloadedMusic(cached)) {
+      fallback = cached;
+    }
+    fallback ??= await offlineCache.buildArtistFromDownloads(widget.artistId);
+    fallback ??= _buildArtistFromSeed();
     if (fallback != null) {
       await _applyArtistData(fallback);
       await _loadFavoriteState();
@@ -96,6 +100,43 @@ class _ArtistPageState extends State<ArtistPage> {
       ...(data['singles'] as List? ?? []),
     ].map((m) => Music.fromJson(Map<String, dynamic>.from(m as Map))).toList();
     return offlineCache.hasDownloadedMusic(cachedMusics);
+  }
+
+  Map<String, dynamic>? _buildArtistFromSeed() {
+    final music = widget.seedMusic;
+    if (music == null ||
+        music.artistId.isEmpty ||
+        music.artistId != widget.artistId) {
+      return null;
+    }
+
+    final albums = music.albumId.isEmpty
+        ? <Map<String, dynamic>>[]
+        : [
+            {
+              '_id': music.albumId,
+              'name': music.albumName,
+              'albumCoverUrl': music.coverUrl,
+              'artistId': music.artistId,
+              'artistName': music.artistName,
+              'color': music.color,
+            }
+          ];
+
+    return {
+      'artist': {
+        '_id': music.artistId,
+        'name': music.artistName,
+        'avatarUrl': music.coverUrl,
+        'bannerUrl': '',
+        'bio': '',
+        'color': music.color,
+        'genres': music.genre.isEmpty ? <String>[] : [music.genre],
+      },
+      'musics': [music.toJson()],
+      'singles': <Map<String, dynamic>>[],
+      'albums': albums,
+    };
   }
 
   Future<void> _loadFavoriteState() async {

@@ -56,7 +56,6 @@ dependencies:
   connectivity_plus: ^7.1.1
   intl: any
   record: ^6.0.0
-  audio_router: 1.1.1
 
 dev_dependencies:
   flutter_test:

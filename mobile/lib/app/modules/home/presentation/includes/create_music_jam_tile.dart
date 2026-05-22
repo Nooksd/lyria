@@ -55,7 +55,7 @@ class CreateMusicJamTile extends StatelessWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.primary,
-              foregroundColor: Colors.white,
+              foregroundColor: Theme.of(ctx).colorScheme.onPrimary,
             ),
             onPressed: () async {
               final code = controller.text.trim().toLowerCase();
@@ -316,12 +316,7 @@ class CreateMusicJamTile extends StatelessWidget {
             children: [
               ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primaryContainer,
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                    width: 2,
-                  ),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   shape: CircleBorder(),
                   padding: EdgeInsets.all(0),
                   minimumSize: Size(50, 50),
@@ -330,7 +325,7 @@ class CreateMusicJamTile extends StatelessWidget {
                 child: Icon(
                   CustomIcons.plus_thick,
                   size: 30,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
               SizedBox(height: 10),

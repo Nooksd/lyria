@@ -18,7 +18,8 @@ import 'package:lyria/app/core/services/http/my_http_client.dart';
 
 class AlbumPage extends StatefulWidget {
   final String albumId;
-  const AlbumPage({super.key, required this.albumId});
+  final Music? seedMusic;
+  const AlbumPage({super.key, required this.albumId, this.seedMusic});
 
   @override
   State<AlbumPage> createState() => _AlbumPageState();
@@ -58,9 +59,12 @@ class _AlbumPageState extends State<AlbumPage> {
     }
 
     final cached = await offlineCache.getAlbum(widget.albumId);
-    final fallback = cached != null && await _hasDownloadedMusic(cached)
-        ? cached
-        : await offlineCache.buildAlbumFromDownloads(widget.albumId);
+    Map<String, dynamic>? fallback;
+    if (cached != null && await _hasDownloadedMusic(cached)) {
+      fallback = cached;
+    }
+    fallback ??= await offlineCache.buildAlbumFromDownloads(widget.albumId);
+    fallback ??= _buildAlbumFromSeed();
     if (fallback != null) {
       await _applyAlbumData(fallback);
       await _loadFavoriteState();
@@ -91,6 +95,29 @@ class _AlbumPageState extends State<AlbumPage> {
         .map((m) => Music.fromJson(Map<String, dynamic>.from(m as Map)))
         .toList();
     return offlineCache.hasDownloadedMusic(cachedMusics);
+  }
+
+  Map<String, dynamic>? _buildAlbumFromSeed() {
+    final music = widget.seedMusic;
+    if (music == null ||
+        music.albumId.isEmpty ||
+        music.albumId != widget.albumId) {
+      return null;
+    }
+
+    return {
+      'album': {
+        '_id': music.albumId,
+        'name': music.albumName,
+        'artistId': music.artistId,
+        'artistName': music.artistName,
+        'albumCoverUrl': music.coverUrl,
+        'color': music.color,
+        'totalTracks': 1,
+      },
+      'artistName': music.artistName,
+      'musics': [music.toJson()],
+    };
   }
 
   Future<void> _loadFavoriteState() async {
@@ -320,16 +347,12 @@ class _AlbumPageState extends State<AlbumPage> {
                                 }
                               },
                               style: IconButton.styleFrom(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer,
-                                side: BorderSide(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
                               ),
                               icon: Icon(
                                 Icons.play_arrow,
-                                color: Theme.of(context).colorScheme.primary,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             ),
                           ),
@@ -351,16 +374,12 @@ class _AlbumPageState extends State<AlbumPage> {
                                 }
                               },
                               style: IconButton.styleFrom(
-                                backgroundColor: Theme.of(context)
-                                    .colorScheme
-                                    .primaryContainer,
-                                side: BorderSide(
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
+                                backgroundColor:
+                                    Theme.of(context).colorScheme.primary,
                               ),
                               icon: Icon(
                                 Icons.shuffle,
-                                color: Theme.of(context).colorScheme.primary,
+                                color: Theme.of(context).colorScheme.onPrimary,
                               ),
                             ),
                           ),
@@ -469,15 +488,11 @@ class _AlbumDownloadButton extends StatelessWidget {
                     ? null
                     : () => downloadCubit.downloadPlaylist(musics),
                 style: IconButton.styleFrom(
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primaryContainer,
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                 ),
                 icon: Icon(
                   Icons.download,
-                  color: Theme.of(context).colorScheme.primary,
+                  color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
             );

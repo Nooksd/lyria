@@ -1,7 +1,7 @@
-import 'package:audio_router/audio_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
@@ -30,7 +30,8 @@ class _MusicPageState extends State<MusicPage> {
   final DownloadCubit downloadCubit = getIt<DownloadCubit>();
   final PlaylistCubit playlistCubit = getIt<PlaylistCubit>();
   final FavoritesCache favoritesCache = getIt<FavoritesCache>();
-  final AudioRouter _audioRouter = AudioRouter();
+  static const MethodChannel _audioRoutesChannel =
+      MethodChannel('lyria/audio_routes');
 
   var _isLyricsExpanded = false;
   final ScrollController _lyricsScrollController = ScrollController();
@@ -104,7 +105,7 @@ class _MusicPageState extends State<MusicPage> {
 
   void _openArtist(Music music) {
     if (music.artistId.isNotEmpty) {
-      context.push('/auth/ui/artist', extra: music.artistId);
+      context.push('/auth/ui/artist', extra: music);
     }
   }
 
@@ -115,7 +116,7 @@ class _MusicPageState extends State<MusicPage> {
       return;
     }
     if (music.albumId.isNotEmpty) {
-      context.push('/auth/ui/album', extra: music.albumId);
+      context.push('/auth/ui/album', extra: music);
     }
   }
 
@@ -165,11 +166,18 @@ class _MusicPageState extends State<MusicPage> {
                       child: OutlinedButton.icon(
                         onPressed: () async {
                           try {
-                            await _audioRouter.showAudioRoutePicker(
-                              context,
-                              androidOptions: AndroidAudioOptions.media(),
-                              dialogTitle: 'Saida de audio',
-                            );
+                            final opened = await _audioRoutesChannel
+                                    .invokeMethod<bool>('showRoutePicker') ??
+                                false;
+                            if (!opened && mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Nenhum seletor de audio disponivel',
+                                  ),
+                                ),
+                              );
+                            }
                           } catch (_) {
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -674,13 +682,7 @@ class _MusicPageState extends State<MusicPage> {
                                       decoration: BoxDecoration(
                                         color: Theme.of(context)
                                             .colorScheme
-                                            .primaryContainer,
-                                        border: Border.all(
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .primary,
-                                          width: 2,
-                                        ),
+                                            .primary,
                                         borderRadius:
                                             BorderRadius.circular(100),
                                       ),
@@ -692,7 +694,7 @@ class _MusicPageState extends State<MusicPage> {
                                           size: 25,
                                           color: Theme.of(context)
                                               .colorScheme
-                                              .primary,
+                                              .onPrimary,
                                         ),
                                       ),
                                     ),

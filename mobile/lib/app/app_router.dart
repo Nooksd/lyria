@@ -16,6 +16,7 @@ import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dar
 import 'package:lyria/app/modules/library/presentation/pages/add_playlist.dart';
 import 'package:lyria/app/modules/library/presentation/pages/library_page.dart';
 import 'package:lyria/app/modules/library/presentation/pages/playlist_page.dart';
+import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/library/presentation/pages/add_music.dart';
 import 'package:lyria/app/modules/music/presentation/pages/music_page.dart';
@@ -138,15 +139,46 @@ class AppRouter {
           ),
           GoRoute(
             path: '/auth/ui/album',
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: AlbumPage(albumId: state.extra as String),
-            ),
+            pageBuilder: (context, state) {
+              final extra = state.extra;
+              final seedMusic = extra is Music
+                  ? extra
+                  : extra is Map && extra['music'] is Music
+                      ? extra['music'] as Music
+                      : null;
+              final albumId = extra is String
+                  ? extra
+                  : extra is Music
+                      ? extra.albumId
+                      : extra is Map
+                          ? (extra['id'] ?? seedMusic?.albumId ?? '').toString()
+                          : '';
+              return NoTransitionPage(
+                child: AlbumPage(albumId: albumId, seedMusic: seedMusic),
+              );
+            },
           ),
           GoRoute(
             path: '/auth/ui/artist',
-            pageBuilder: (context, state) => NoTransitionPage(
-              child: ArtistPage(artistId: state.extra as String),
-            ),
+            pageBuilder: (context, state) {
+              final extra = state.extra;
+              final seedMusic = extra is Music
+                  ? extra
+                  : extra is Map && extra['music'] is Music
+                      ? extra['music'] as Music
+                      : null;
+              final artistId = extra is String
+                  ? extra
+                  : extra is Music
+                      ? extra.artistId
+                      : extra is Map
+                          ? (extra['id'] ?? seedMusic?.artistId ?? '')
+                              .toString()
+                          : '';
+              return NoTransitionPage(
+                child: ArtistPage(artistId: artistId, seedMusic: seedMusic),
+              );
+            },
           ),
           GoRoute(
             path: '/auth/ui/genre',

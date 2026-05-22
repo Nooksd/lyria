@@ -27,6 +27,7 @@ class _GenrePageState extends State<GenrePage> {
 
   List<Map<String, dynamic>> artists = [];
   List<Music> musics = [];
+  List<Music> downloadedMusics = [];
   List<Map<String, dynamic>> albums = [];
   bool isLoading = true;
   Set<String> downloadedIds = {};
@@ -62,8 +63,9 @@ class _GenrePageState extends State<GenrePage> {
 
   Future<void> _applyGenreData(Map<String, dynamic> data) async {
     final ids = await offlineCache.getDownloadedIds();
+    final allDownloadedMusics = await offlineCache.getDownloadedMusics();
     final normalizedGenre = widget.genre.trim().toLowerCase();
-    final downloadedGenreMusics = (await offlineCache.getDownloadedMusics())
+    final downloadedGenreMusics = allDownloadedMusics
         .where((music) => music.genre.toLowerCase().contains(normalizedGenre))
         .toList();
     final loadedMusics = (data['musics'] as List? ?? [])
@@ -111,6 +113,7 @@ class _GenrePageState extends State<GenrePage> {
     setState(() {
       artists = loadedArtists;
       musics = loadedMusics;
+      downloadedMusics = allDownloadedMusics;
       albums = loadedAlbums;
       downloadedIds = ids;
       isLoading = false;
@@ -122,13 +125,13 @@ class _GenrePageState extends State<GenrePage> {
   }
 
   bool _artistHasDownloadedMusic(String artistId) {
-    return musics.any(
+    return downloadedMusics.any(
       (music) => music.artistId == artistId && downloadedIds.contains(music.id),
     );
   }
 
   bool _albumHasDownloadedMusic(String albumId) {
-    return musics.any(
+    return downloadedMusics.any(
       (music) => music.albumId == albumId && downloadedIds.contains(music.id),
     );
   }

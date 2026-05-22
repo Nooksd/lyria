@@ -228,7 +228,7 @@ class _StorageCachePageState extends State<StorageCachePage> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: Theme.of(context).colorScheme.onPrimary,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.1),
@@ -243,8 +243,11 @@ class _StorageCachePageState extends State<StorageCachePage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    )),
                 const SizedBox(height: 4),
                 Text(size,
                     style: TextStyle(
