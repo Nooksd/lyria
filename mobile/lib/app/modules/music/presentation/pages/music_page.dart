@@ -103,20 +103,33 @@ class _MusicPageState extends State<MusicPage> {
     return _currentPlaylist()?.name ?? music.albumName;
   }
 
+  void _navigateFromPlayer(String location, Object extra) {
+    final router = GoRouter.of(context);
+    if (router.canPop()) {
+      router.pop();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        router.push(location, extra: extra);
+      });
+      return;
+    }
+
+    router.go(location, extra: extra);
+  }
+
   void _openArtist(Music music) {
     if (music.artistId.isNotEmpty) {
-      context.push('/auth/ui/artist', extra: music);
+      _navigateFromPlayer('/auth/ui/artist', music);
     }
   }
 
   void _openAlbumOrPlaylist(Music music) {
     final playlist = _currentPlaylist();
     if (playlist != null) {
-      context.push('/auth/ui/playlist', extra: playlist);
+      _navigateFromPlayer('/auth/ui/playlist', playlist);
       return;
     }
     if (music.albumId.isNotEmpty) {
-      context.push('/auth/ui/album', extra: music);
+      _navigateFromPlayer('/auth/ui/album', music);
     }
   }
 

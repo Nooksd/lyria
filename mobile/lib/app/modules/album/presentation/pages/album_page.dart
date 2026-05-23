@@ -45,6 +45,12 @@ class _AlbumPageState extends State<AlbumPage> {
   }
 
   Future<void> _loadAlbum() async {
+    final seedData = _buildAlbumFromSeed();
+    if (seedData != null) {
+      await _applyAlbumData(seedData);
+      _loadFavoriteState().catchError((_) {});
+    }
+
     try {
       final response = await http.get('/album/${widget.albumId}');
       if (response['status'] == 200) {
@@ -64,14 +70,13 @@ class _AlbumPageState extends State<AlbumPage> {
       fallback = cached;
     }
     fallback ??= await offlineCache.buildAlbumFromDownloads(widget.albumId);
-    fallback ??= _buildAlbumFromSeed();
     if (fallback != null) {
       await _applyAlbumData(fallback);
       await _loadFavoriteState();
       return;
     }
 
-    if (mounted) setState(() => isLoading = false);
+    if (seedData == null && mounted) setState(() => isLoading = false);
   }
 
   Future<void> _applyAlbumData(Map<String, dynamic> data) async {

@@ -44,6 +44,12 @@ class _ArtistPageState extends State<ArtistPage> {
   }
 
   Future<void> _loadArtist() async {
+    final seedData = _buildArtistFromSeed();
+    if (seedData != null) {
+      await _applyArtistData(seedData);
+      _loadFavoriteState().catchError((_) {});
+    }
+
     try {
       final response = await http.get('/artist/${widget.artistId}');
       if (response['status'] == 200) {
@@ -63,14 +69,13 @@ class _ArtistPageState extends State<ArtistPage> {
       fallback = cached;
     }
     fallback ??= await offlineCache.buildArtistFromDownloads(widget.artistId);
-    fallback ??= _buildArtistFromSeed();
     if (fallback != null) {
       await _applyArtistData(fallback);
       await _loadFavoriteState();
       return;
     }
 
-    if (mounted) setState(() => isLoading = false);
+    if (seedData == null && mounted) setState(() => isLoading = false);
   }
 
   Future<void> _applyArtistData(Map<String, dynamic> data) async {
