@@ -166,12 +166,16 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 	}
 
 	existingMusicNames := make(map[string]primitive.ObjectID)
+	existingMusicSpotifyIDs := make(map[string]primitive.ObjectID)
 	mCursor, err := musicCollection.Find(dbCtx, bson.M{"artistId": artist.ID})
 	if err == nil {
 		var musics []model.Music
 		if mCursor.All(dbCtx, &musics) == nil {
 			for _, m := range musics {
 				existingMusicNames[normalizeTrackName(m.Name)] = m.ID
+				if m.SpotifyID != "" {
+					existingMusicSpotifyIDs[m.SpotifyID] = m.ID
+				}
 			}
 		}
 	}
@@ -197,7 +201,11 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 		// Check which tracks are new
 		var newTracks []spotifyTrack
 		for _, t := range tracks {
-			if existingMusicID, ok := existingMusicNames[normalizeTrackName(t.Name)]; ok {
+			existingMusicID, alreadyExists := existingMusicSpotifyIDs[t.ID]
+			if !alreadyExists {
+				existingMusicID, alreadyExists = existingMusicNames[normalizeTrackName(t.Name)]
+			}
+			if alreadyExists {
 				updateMusicSpotifyMetadata(ctx, existingMusicID, t)
 			} else {
 				newTracks = append(newTracks, t)
@@ -375,6 +383,9 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 
 			result.NewMusics++
 			existingMusicNames[normalizeTrackName(track.Name)] = musicOID
+			if track.ID != "" {
+				existingMusicSpotifyIDs[track.ID] = musicOID
+			}
 
 			// Try to fetch lyrics
 			lrcPath := filepath.Join("uploads", "lyrics", musicOID.Hex()+".lrc")
@@ -400,6 +411,10 @@ func syncArtistData(ctx context.Context, artist model.Artist) (*syncResult, erro
 		result.Message = "Tudo atualizado, nenhuma novidade encontrada."
 	} else {
 		result.Message = "Sincronização concluída: " + strings.Join(parts, ", ") + "."
+	}
+
+	if result.NewMusics > 0 || result.NewAlbums > 0 {
+		enqueueRecommendationTrainingIfCatalogChanged("sync")
 	}
 
 	return result, nil

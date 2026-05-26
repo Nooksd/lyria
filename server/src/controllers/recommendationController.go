@@ -9,9 +9,11 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	database "server/src/db"
+	model "server/src/models"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -27,6 +29,17 @@ const (
 
 var recommendationVectorsCollection *mongo.Collection = database.OpenCollection(database.Client, "recommendation_vectors")
 var recommendationModelsCollection *mongo.Collection = database.OpenCollection(database.Client, "recommendation_models")
+var recommendationJobsCollection *mongo.Collection = database.OpenCollection(database.Client, "recommendation_jobs")
+
+type recommendationQueue struct {
+	queue chan primitive.ObjectID
+}
+
+var (
+	recommendationWorker     = &recommendationQueue{queue: make(chan primitive.ObjectID, 20)}
+	recommendationEnqueueMu  sync.Mutex
+	recommendationTrainingMu sync.Mutex
+)
 
 type recommendationRequest struct {
 	Queue      []string `json:"queue"`
@@ -48,6 +61,191 @@ type recommendationCandidate struct {
 type recommendationNeighbor struct {
 	MusicID string  `bson:"musicId" json:"musicId"`
 	Score   float64 `bson:"score" json:"score"`
+}
+
+func StartRecommendationWorker() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	now := time.Now()
+	recommendationJobsCollection.UpdateMany(
+		ctx,
+		bson.M{"status": "running"},
+		bson.M{"$set": bson.M{
+			"status":    "queued",
+			"message":   "Servidor reiniciado; treino voltou para a fila.",
+			"updatedAt": now,
+		}},
+	)
+
+	cursor, err := recommendationJobsCollection.Find(
+		ctx,
+		bson.M{"status": "queued"},
+		options.Find().SetSort(bson.M{"createdAt": 1}),
+	)
+	if err == nil {
+		var jobs []model.RecommendationJob
+		if cursor.All(ctx, &jobs) == nil {
+			for _, job := range jobs {
+				recommendationWorker.enqueue(job.ID)
+			}
+		}
+	}
+
+	go recommendationWorker.run()
+}
+
+func (q *recommendationQueue) enqueue(jobID primitive.ObjectID) {
+	select {
+	case q.queue <- jobID:
+	default:
+		go func() { q.queue <- jobID }()
+	}
+}
+
+func (q *recommendationQueue) run() {
+	for jobID := range q.queue {
+		q.process(jobID)
+	}
+}
+
+func (q *recommendationQueue) process(jobID primitive.ObjectID) {
+	recommendationTrainingMu.Lock()
+	defer recommendationTrainingMu.Unlock()
+
+	ctx := context.Background()
+	now := time.Now()
+	_, err := recommendationJobsCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": jobID, "status": "queued"},
+		bson.M{"$set": bson.M{
+			"status":    "running",
+			"message":   "Iniciando treino do modelo.",
+			"progress":  0,
+			"total":     100,
+			"percent":   0,
+			"startedAt": now,
+			"updatedAt": now,
+		}},
+	)
+	if err != nil {
+		return
+	}
+
+	stats, err := trainRecommendationModel(ctx, func(progress, total int, message string) {
+		if total <= 0 {
+			total = 100
+		}
+		if progress < 0 {
+			progress = 0
+		}
+		if progress > total {
+			progress = total
+		}
+		percent := int(math.Round((float64(progress) / float64(total)) * 100))
+		update := bson.M{
+			"progress":  progress,
+			"total":     total,
+			"percent":   percent,
+			"updatedAt": time.Now(),
+		}
+		if message != "" {
+			update["message"] = message
+		}
+		progressCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		recommendationJobsCollection.UpdateOne(progressCtx, bson.M{"_id": jobID}, bson.M{"$set": update})
+		cancel()
+	})
+
+	finishedAt := time.Now()
+	if err != nil {
+		recommendationJobsCollection.UpdateOne(
+			ctx,
+			bson.M{"_id": jobID},
+			bson.M{"$set": bson.M{
+				"status":     "failed",
+				"message":    "Treino falhou.",
+				"error":      err.Error(),
+				"updatedAt":  finishedAt,
+				"finishedAt": finishedAt,
+			}},
+		)
+		return
+	}
+
+	recommendationJobsCollection.UpdateOne(
+		ctx,
+		bson.M{"_id": jobID},
+		bson.M{"$set": bson.M{
+			"status":        "completed",
+			"message":       "Modelo treinado com sucesso.",
+			"progress":      100,
+			"total":         100,
+			"percent":       100,
+			"catalogMusics": stats["catalogMusics"],
+			"featureCount":  stats["featureCount"],
+			"reusedVectors": stats["reusedVectors"],
+			"playEvents":    stats["playEvents"],
+			"playlists":     stats["playlists"],
+			"modelVersion":  recommendationModelVersion,
+			"updatedAt":     finishedAt,
+			"finishedAt":    finishedAt,
+		}},
+	)
+}
+
+func enqueueRecommendationTraining(trigger string) (*model.RecommendationJob, error) {
+	recommendationEnqueueMu.Lock()
+	defer recommendationEnqueueMu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var existing model.RecommendationJob
+	err := recommendationJobsCollection.FindOne(
+		ctx,
+		bson.M{"status": "queued"},
+		options.FindOne().SetSort(bson.M{"createdAt": -1}),
+	).Decode(&existing)
+	if err == nil {
+		return &existing, nil
+	}
+
+	err = recommendationJobsCollection.FindOne(
+		ctx,
+		bson.M{"status": "running"},
+		options.FindOne().SetSort(bson.M{"createdAt": -1}),
+	).Decode(&existing)
+	if err == nil && trigger == "manual" {
+		return &existing, nil
+	}
+
+	now := time.Now()
+	job := model.RecommendationJob{
+		ID:           primitive.NewObjectID(),
+		Status:       "queued",
+		Trigger:      trigger,
+		Message:      "Aguardando treino.",
+		Progress:     0,
+		Total:        100,
+		Percent:      0,
+		ModelVersion: recommendationModelVersion,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+	if _, err := recommendationJobsCollection.InsertOne(ctx, job); err != nil {
+		return nil, err
+	}
+	recommendationWorker.enqueue(job.ID)
+	return &job, nil
+}
+
+func enqueueRecommendationTrainingIfCatalogChanged(trigger string) {
+	go func() {
+		if _, err := enqueueRecommendationTraining(trigger); err != nil {
+			return
+		}
+	}()
 }
 
 func RecommendNextMusic() gin.HandlerFunc {
@@ -107,16 +305,52 @@ func RecommendPlaylistMusics() gin.HandlerFunc {
 
 func RebuildRecommendationIndex() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Minute)
-		defer cancel()
-
-		stats, err := trainRecommendationModel(ctx)
+		job, err := enqueueRecommendationTraining("manual")
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao treinar recomendacoes"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao enfileirar treino"})
 			return
 		}
 
-		c.JSON(http.StatusOK, stats)
+		c.JSON(http.StatusAccepted, gin.H{"job": job})
+	}
+}
+
+func GetLatestRecommendationJob() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		var job model.RecommendationJob
+		err := recommendationJobsCollection.FindOne(
+			ctx,
+			bson.M{},
+			options.FindOne().SetSort(bson.M{"createdAt": -1}),
+		).Decode(&job)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"job": nil})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"job": job})
+	}
+}
+
+func GetRecommendationJob() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		id, err := primitive.ObjectIDFromHex(c.Param("jobId"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "ID invalido"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 5*time.Second)
+		defer cancel()
+
+		var job model.RecommendationJob
+		if err := recommendationJobsCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&job); err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Job nao encontrado"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"job": job})
 	}
 }
 
@@ -143,24 +377,41 @@ func getPlaylistMusicIDs(ctx context.Context, playlistID string) ([]string, erro
 	return ids, nil
 }
 
-func trainRecommendationModel(ctx context.Context) (gin.H, error) {
+func trainRecommendationModel(ctx context.Context, reportProgress func(progress, total int, message string)) (gin.H, error) {
+	if reportProgress == nil {
+		reportProgress = func(int, int, string) {}
+	}
+	reportProgress(2, 100, "Carregando catalogo musical.")
 	catalog, err := loadRecommendationCatalog(ctx)
 	if err != nil {
 		return nil, err
 	}
+	reportProgress(8, 100, "Extraindo caracteristicas das musicas.")
 
 	playCounts := loadMusicPlayCounts(ctx)
+	existingVectors := loadExistingRecommendationVectorDocs(ctx)
 	rawVectors := make(map[string]map[string]float64, len(catalog))
 	docFreq := map[string]int{}
 	catalogByID := map[string]bson.M{}
 	candidates := make([]recommendationCandidate, 0, len(catalog))
+	reusedVectors := 0
 
-	for _, music := range catalog {
+	for idx, music := range catalog {
 		id := objectIDHex(music["_id"])
 		if id == "" {
 			continue
 		}
-		vector := buildMusicFeatureVector(music)
+		musicUpdatedAt := asTime(music["updatedAt"])
+		vector := map[string]float64{}
+		if existing, ok := existingVectors[id]; ok && !musicUpdatedAt.IsZero() && asTime(existing["musicUpdatedAt"]).Equal(musicUpdatedAt) {
+			vector = asFloatMap(existing["rawFeatures"])
+			if len(vector) > 0 {
+				reusedVectors++
+			}
+		}
+		if len(vector) == 0 {
+			vector = buildMusicFeatureVector(music)
+		}
 		rawVectors[id] = vector
 		catalogByID[id] = music
 		seen := map[string]bool{}
@@ -170,8 +421,13 @@ func trainRecommendationModel(ctx context.Context) (gin.H, error) {
 				seen[key] = true
 			}
 		}
+		if len(catalog) > 0 && (idx%25 == 0 || idx == len(catalog)-1) {
+			progress := 8 + int(math.Round((float64(idx+1)/float64(len(catalog)))*17))
+			reportProgress(progress, 100, "Vetorizando musicas novas e reutilizando as ja indexadas.")
+		}
 	}
 
+	reportProgress(28, 100, "Aplicando pesos TF-IDF.")
 	totalDocs := float64(len(rawVectors))
 	for id, raw := range rawVectors {
 		vector := map[string]float64{}
@@ -189,9 +445,18 @@ func trainRecommendationModel(ctx context.Context) (gin.H, error) {
 		})
 	}
 
+	reportProgress(36, 100, "Lendo playlists e sequencias de plays.")
 	collab := loadCollaborativeSignals(ctx)
-	neighborsByID := buildRecommendationNeighbors(candidates, collab)
+	reportProgress(45, 100, "Calculando vizinhos musicais.")
+	neighborsByID := buildRecommendationNeighbors(candidates, collab, func(done, total int) {
+		if total <= 0 {
+			return
+		}
+		progress := 45 + int(math.Round((float64(done)/float64(total))*40))
+		reportProgress(progress, 100, "Calculando similaridade entre musicas.")
+	})
 
+	reportProgress(88, 100, "Salvando modelo no MongoDB.")
 	if err := recommendationVectorsCollection.Drop(ctx); err != nil {
 		return nil, err
 	}
@@ -205,11 +470,13 @@ func trainRecommendationModel(ctx context.Context) (gin.H, error) {
 			"_id":               id,
 			"musicId":           id,
 			"artistId":          candidate.ArtistID,
+			"rawFeatures":       rawVectors[id],
 			"features":          candidate.Feature,
 			"norm":              candidate.Norm,
 			"neighbors":         neighbors,
 			"playCount":         candidate.PlayCount,
 			"spotifyPopularity": asInt(candidate.Music["spotifyPopularity"]),
+			"musicUpdatedAt":    candidate.Music["updatedAt"],
 			"modelVersion":      recommendationModelVersion,
 			"updatedAt":         now,
 		})
@@ -220,6 +487,7 @@ func trainRecommendationModel(ctx context.Context) (gin.H, error) {
 		}
 	}
 
+	reportProgress(94, 100, "Criando indices do modelo.")
 	_, _ = recommendationVectorsCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
 		{Keys: bson.D{{Key: "musicId", Value: 1}}},
 		{Keys: bson.D{{Key: "modelVersion", Value: 1}}},
@@ -235,6 +503,7 @@ func trainRecommendationModel(ctx context.Context) (gin.H, error) {
 		"playEvents":     totalPlays,
 		"playlists":      totalPlaylists,
 		"neighborCap":    recommendationNeighborCap,
+		"reusedVectors":  reusedVectors,
 		"trainedAt":      now,
 		"collabItemRows": len(collab),
 	}
@@ -248,6 +517,7 @@ func trainRecommendationModel(ctx context.Context) (gin.H, error) {
 		return nil, err
 	}
 
+	reportProgress(100, 100, "Modelo treinado com sucesso.")
 	return gin.H{
 		"message":       "Modelo de recomendacao treinado",
 		"modelVersion":  recommendationModelVersion,
@@ -256,11 +526,37 @@ func trainRecommendationModel(ctx context.Context) (gin.H, error) {
 		"playEvents":    totalPlays,
 		"playlists":     totalPlaylists,
 		"neighborCap":   recommendationNeighborCap,
+		"reusedVectors": reusedVectors,
 		"updatedAt":     now,
 	}, nil
 }
 
-func buildRecommendationNeighbors(candidates []recommendationCandidate, collab map[string]map[string]float64) map[string][]recommendationNeighbor {
+func loadExistingRecommendationVectorDocs(ctx context.Context) map[string]bson.M {
+	result := map[string]bson.M{}
+	cursor, err := recommendationVectorsCollection.Find(
+		ctx,
+		bson.M{"modelVersion": recommendationModelVersion},
+		options.Find().SetProjection(bson.M{"rawFeatures": 1, "musicUpdatedAt": 1}),
+	)
+	if err != nil {
+		return result
+	}
+	defer cursor.Close(ctx)
+
+	for cursor.Next(ctx) {
+		var doc bson.M
+		if cursor.Decode(&doc) != nil {
+			continue
+		}
+		id := objectIDHex(doc["_id"])
+		if id != "" {
+			result[id] = doc
+		}
+	}
+	return result
+}
+
+func buildRecommendationNeighbors(candidates []recommendationCandidate, collab map[string]map[string]float64, progress func(done, total int)) map[string][]recommendationNeighbor {
 	neighborsByID := map[string][]recommendationNeighbor{}
 	for i := range candidates {
 		leftID := objectIDHex(candidates[i].Music["_id"])
@@ -292,6 +588,9 @@ func buildRecommendationNeighbors(candidates []recommendationCandidate, collab m
 			ranked = ranked[:recommendationNeighborCap]
 		}
 		neighborsByID[leftID] = ranked
+		if progress != nil && (i%5 == 0 || i == len(candidates)-1) {
+			progress(i+1, len(candidates))
+		}
 	}
 	return neighborsByID
 }
@@ -992,6 +1291,17 @@ func asFloatMap(value interface{}) map[string]float64 {
 		}
 	}
 	return result
+}
+
+func asTime(value interface{}) time.Time {
+	switch v := value.(type) {
+	case time.Time:
+		return v
+	case primitive.DateTime:
+		return v.Time()
+	default:
+		return time.Time{}
+	}
 }
 
 func asNeighborScoreMap(value interface{}) map[string]float64 {

@@ -23,6 +23,25 @@ interface LogEntry {
   time: string;
 }
 
+interface RecommendationJob {
+  _id: string;
+  status: string;
+  trigger: string;
+  message: string;
+  progress: number;
+  total: number;
+  percent: number;
+  catalogMusics: number;
+  featureCount: number;
+  reusedVectors: number;
+  playEvents: number;
+  playlists: number;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+  finishedAt?: string;
+}
+
 export default function Imports() {
   const [jobs, setJobs] = useState<ImportJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,6 +54,7 @@ export default function Imports() {
   const [autoImportLoading, setAutoImportLoading] = useState(false);
   const [fingerprintLoading, setFingerprintLoading] = useState(false);
   const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [recommendationJob, setRecommendationJob] = useState<RecommendationJob | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<AbortController | null>(null);
   const { toasts, show } = useToast();
@@ -60,15 +80,26 @@ export default function Imports() {
     }
   }, []);
 
+  const loadRecommendationJob = useCallback(async () => {
+    try {
+      const res = await api.get('/admin/recommendations/jobs/latest');
+      setRecommendationJob(res.data.job || null);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     loadJobs();
     loadAutoImportStatus();
+    loadRecommendationJob();
     const interval = setInterval(() => {
       loadJobs();
       loadAutoImportStatus();
+      loadRecommendationJob();
     }, 5000);
     return () => clearInterval(interval);
-  }, [loadJobs, loadAutoImportStatus]);
+  }, [loadJobs, loadAutoImportStatus, loadRecommendationJob]);
 
   const toggleAutoImport = async () => {
     setAutoImportLoading(true);
@@ -113,21 +144,17 @@ export default function Imports() {
   };
 
   const rebuildRecommendations = async () => {
-    if (recommendationLoading) {
+    if (recommendationLoading || recommendationJob?.status === 'queued' || recommendationJob?.status === 'running') {
       return;
     }
 
     setRecommendationLoading(true);
     try {
       const res = await api.post('/admin/recommendations/rebuild');
-      const total = res.data?.catalogMusics;
-      show(
-        typeof total === 'number'
-          ? `Modelo treinado com ${total} musicas`
-          : 'Modelo de recomendacao treinado'
-      );
+      setRecommendationJob(res.data.job || null);
+      show('Treino de recomendacoes enfileirado');
     } catch (err: any) {
-      show(err.response?.data?.error || 'Erro ao atualizar recomendacoes', 'error');
+      show(err.response?.data?.error || 'Erro ao enfileirar recomendacoes', 'error');
     } finally {
       setRecommendationLoading(false);
     }
@@ -310,6 +337,8 @@ export default function Imports() {
     );
   };
 
+  const recommendationBusy = recommendationJob?.status === 'queued' || recommendationJob?.status === 'running';
+
   return (
     <>
       <ToastContainer toasts={toasts} />
@@ -327,10 +356,10 @@ export default function Imports() {
           <button
             className="btn btn-primary"
             onClick={rebuildRecommendations}
-            disabled={recommendationLoading}
-            style={{ opacity: recommendationLoading ? 0.7 : 1 }}
+            disabled={recommendationLoading || recommendationBusy}
+            style={{ opacity: recommendationLoading || recommendationBusy ? 0.7 : 1 }}
           >
-            {recommendationLoading ? 'Treinando modelo...' : 'Treinar recomendacoes'}
+            {recommendationBusy ? 'Treino em andamento' : recommendationLoading ? 'Enfileirando...' : 'Treinar recomendacoes'}
           </button>
           {autoImportEnabled && autoImportGenre && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
@@ -377,6 +406,37 @@ export default function Imports() {
           </label>
         </div>
       </div>
+
+      {recommendationJob && (
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <strong>Modelo de recomendacao</strong>{' '}
+              {statusBadge(recommendationJob.status)}
+              <div style={{ color: 'var(--text-muted)', fontSize: 13, marginTop: 4 }}>
+                {recommendationJob.message || 'Aguardando status'}
+                {recommendationJob.error ? `: ${recommendationJob.error}` : ''}
+              </div>
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+              {recommendationJob.catalogMusics > 0 && `${recommendationJob.catalogMusics} musicas`}
+              {recommendationJob.reusedVectors > 0 && ` · ${recommendationJob.reusedVectors} ja indexadas reutilizadas`}
+            </div>
+          </div>
+          <div style={{ height: 6, background: 'var(--bg)', borderRadius: 3, overflow: 'hidden', marginTop: 12 }}>
+            <div style={{
+              height: '100%',
+              width: `${Math.max(0, Math.min(100, recommendationJob.percent || 0))}%`,
+              background: recommendationJob.status === 'failed' ? 'var(--danger)' : recommendationJob.status === 'completed' ? 'var(--success)' : 'var(--accent)',
+              borderRadius: 3,
+              transition: 'width 0.3s ease',
+            }} />
+          </div>
+          <div style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6 }}>
+            {recommendationJob.percent || 0}% · {recommendationJob.progress || 0}/{recommendationJob.total || 100}
+          </div>
+        </div>
+      )}
 
       {selectedJob && jobDetail ? (
         <div className="card" style={{ padding: 24 }}>

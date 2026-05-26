@@ -451,6 +451,7 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 	// 5. Load existing data for deduplication
 	existingAlbumNames := make(map[string]primitive.ObjectID)
 	existingMusicNames := make(map[string]primitive.ObjectID)
+	existingMusicSpotifyIDs := make(map[string]primitive.ObjectID)
 
 	deCtx, deCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if cursor, err := albumCollection.Find(deCtx, bson.M{"artistId": artistOID}); err == nil {
@@ -466,6 +467,9 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 		if cursor.All(deCtx, &existMusics) == nil {
 			for _, m := range existMusics {
 				existingMusicNames[normalizeTrackName(m.Name)] = m.ID
+				if m.SpotifyID != "" {
+					existingMusicSpotifyIDs[m.SpotifyID] = m.ID
+				}
 			}
 		}
 	}
@@ -550,8 +554,12 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 			processedTracks++
 
-			// Skip tracks that already exist
-			if existingMusicID, ok := existingMusicNames[normalizeTrackName(track.Name)]; ok {
+			// Skip tracks that already exist by Spotify ID or normalized title.
+			existingMusicID, alreadyExists := existingMusicSpotifyIDs[track.ID]
+			if !alreadyExists {
+				existingMusicID, alreadyExists = existingMusicNames[normalizeTrackName(track.Name)]
+			}
+			if alreadyExists {
 				updateMusicSpotifyMetadata(ctx, existingMusicID, track)
 				skippedTracks++
 				q.addLog(jobID, "progress", fmt.Sprintf("⏭ [%d/%d] Já existe: %s", processedTracks, totalTracks, track.Name))
@@ -696,6 +704,9 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 
 			totalMusics++
 			existingMusicNames[normalizeTrackName(track.Name)] = musicOID
+			if track.ID != "" {
+				existingMusicSpotifyIDs[track.ID] = musicOID
+			}
 
 			// Generate audio fingerprints for Shazam-like identification (temporarily disabled)
 			// go func(path string, id primitive.ObjectID, name string) {
@@ -724,6 +735,9 @@ func (q *ImportQueue) processJob(jobID primitive.ObjectID) {
 	q.addLog(jobID, "done", summary)
 	q.setResult(jobID, totalAlbums, totalMusics, failedTracks, artistOID.Hex())
 	q.setStatus(jobID, "completed")
+	if totalMusics > 0 || skippedTracks > 0 {
+		enqueueRecommendationTrainingIfCatalogChanged("import")
+	}
 }
 
 func cancelled(ctx context.Context) bool {

@@ -40,6 +40,7 @@ func main() {
 	go websocketmanager.ManagerInstance.Run()
 
 	controller.StartImportWorker()
+	controller.StartRecommendationWorker()
 	controller.InitAutoImport()
 	controller.StartStatsCollector()
 	controller.StartWeeklySync()
