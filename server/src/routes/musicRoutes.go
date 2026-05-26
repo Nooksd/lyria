@@ -31,6 +31,8 @@ func MusicRoutes(router *gin.RouterGroup) {
 	}
 
 	router.GET("/search", controller.GeneralSearch())
+	router.POST("/recommendation/next", controller.RecommendNextMusic())
+	router.POST("/recommendation/playlist", controller.RecommendPlaylistMusics())
 
 	// Shazam-like music identification (temporarily disabled)
 	// router.POST("/music/identify", controller.IdentifyMusic())

@@ -34,6 +34,7 @@ export default function Imports() {
   const [autoImportGenre, setAutoImportGenre] = useState('');
   const [autoImportLoading, setAutoImportLoading] = useState(false);
   const [fingerprintLoading, setFingerprintLoading] = useState(false);
+  const [recommendationLoading, setRecommendationLoading] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<AbortController | null>(null);
   const { toasts, show } = useToast();
@@ -108,6 +109,27 @@ export default function Imports() {
       show(err.response?.data?.error || 'Erro ao iniciar geração de fingerprints', 'error');
     } finally {
       setFingerprintLoading(false);
+    }
+  };
+
+  const rebuildRecommendations = async () => {
+    if (recommendationLoading) {
+      return;
+    }
+
+    setRecommendationLoading(true);
+    try {
+      const res = await api.post('/admin/recommendations/rebuild');
+      const total = res.data?.catalogMusics;
+      show(
+        typeof total === 'number'
+          ? `Modelo treinado com ${total} musicas`
+          : 'Modelo de recomendacao treinado'
+      );
+    } catch (err: any) {
+      show(err.response?.data?.error || 'Erro ao atualizar recomendacoes', 'error');
+    } finally {
+      setRecommendationLoading(false);
     }
   };
 
@@ -301,6 +323,14 @@ export default function Imports() {
             style={{ opacity: fingerprintLoading ? 0.7 : 1 }}
           >
             {fingerprintLoading ? 'Gerando fingerprints...' : 'Gerar fingerprints'}
+          </button>
+          <button
+            className="btn btn-primary"
+            onClick={rebuildRecommendations}
+            disabled={recommendationLoading}
+            style={{ opacity: recommendationLoading ? 0.7 : 1 }}
+          >
+            {recommendationLoading ? 'Treinando modelo...' : 'Treinar recomendacoes'}
           </button>
           {autoImportEnabled && autoImportGenre && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>

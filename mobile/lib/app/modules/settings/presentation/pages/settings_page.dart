@@ -44,6 +44,12 @@ class SettingsPage extends StatelessWidget {
             ),
             _buildSettingsTile(
               context,
+              icon: Icons.tune,
+              title: "Preferencias",
+              onTap: () => context.push('/auth/ui/settings/preferences'),
+            ),
+            _buildSettingsTile(
+              context,
               icon: Icons.person_add_outlined,
               title: "Solicitar Artista",
               onTap: () => context.push('/auth/ui/request-artist'),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   bool _isLoop = false;
   bool _isShuffle = false;
+  bool _handlingQueueEnd = false;
   int _queueSetupVersion = 0;
   bool get isLoop => _isLoop;
   bool get isShuffle => _isShuffle;
@@ -70,6 +72,9 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
     _audioPlayer.playbackEventStream.listen((event) {
       final playing = _audioPlayer.playing;
       final processingState = _audioPlayer.processingState;
+      if (processingState == ProcessingState.completed) {
+        _handleQueueEnd();
+      }
       playbackState.add(
         playbackState.value.copyWith(
           controls: [
@@ -122,6 +127,54 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Future<void> addToQueue(Music music) async {
     await _playlist.add(await _createAudioSource(music));
+  }
+
+  Future<void> _handleQueueEnd() async {
+    if (_handlingQueueEnd || _playlist.children.isEmpty) return;
+    final current = _audioPlayer.currentIndex ?? 0;
+    final isLast = current >= _playlist.children.length - 1;
+    if (!isLast) return;
+
+    _handlingQueueEnd = true;
+    try {
+      final infinitePlay = await storage.get('infinite_play_enabled') == true;
+      if (!infinitePlay) {
+        await _audioPlayer.pause();
+        await _audioPlayer.seek(Duration.zero, index: 0);
+        return;
+      }
+
+      final queueIds = queue.value.map((item) => item.id).toList();
+      final response = await httpClient.post(
+        '/recommendation/next',
+        data: jsonEncode({
+          'queue': queueIds,
+          'exclude': queueIds,
+        }),
+      );
+
+      if (response['status'] != 200 || response['data']?['music'] == null) {
+        await _audioPlayer.pause();
+        await _audioPlayer.seek(Duration.zero, index: 0);
+        return;
+      }
+
+      final nextMusic = Music.fromJson(
+        Map<String, dynamic>.from(response['data']['music']),
+      );
+      await _playlist.add(await _createAudioSource(nextMusic));
+      final nextIndex = _playlist.children.length - 1;
+      await _audioPlayer.seek(Duration.zero, index: nextIndex);
+      await _audioPlayer.play();
+    } catch (e) {
+      debugPrint('Erro no play infinito: $e');
+      try {
+        await _audioPlayer.pause();
+        await _audioPlayer.seek(Duration.zero, index: 0);
+      } catch (_) {}
+    } finally {
+      _handlingQueueEnd = false;
+    }
   }
 
   Future<void> removeFromQueue(int index) async {
@@ -280,6 +333,13 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
         'artistId': music.artistId,
         'albumId': music.albumId,
         'genre': music.genre,
+        'spotifyId': music.spotifyId,
+        'spotifyUrl': music.spotifyUrl,
+        'spotifyPopularity': music.spotifyPopularity,
+        'spotifyDurationMs': music.spotifyDurationMs,
+        'spotifyTrackNumber': music.spotifyTrackNumber,
+        'spotifyDiscNumber': music.spotifyDiscNumber,
+        'spotifyExplicit': music.spotifyExplicit,
       },
       displayTitle: music.name,
       displaySubtitle: music.artistName,
@@ -302,6 +362,13 @@ class MusicService extends BaseAudioHandler with QueueHandler, SeekHandler {
       genre: item.extras?['genre'] ?? '',
       color: item.extras?['color'] ?? '#FFFFFF',
       coverUrl: item.artUri.toString(),
+      spotifyId: item.extras?['spotifyId'] ?? '',
+      spotifyUrl: item.extras?['spotifyUrl'] ?? '',
+      spotifyPopularity: item.extras?['spotifyPopularity'] ?? 0,
+      spotifyDurationMs: item.extras?['spotifyDurationMs'] ?? 0,
+      spotifyTrackNumber: item.extras?['spotifyTrackNumber'] ?? 0,
+      spotifyDiscNumber: item.extras?['spotifyDiscNumber'] ?? 0,
+      spotifyExplicit: item.extras?['spotifyExplicit'] ?? false,
       lyrics: item.extras?['lyrics'] != null
           ? (item.extras!['lyrics'] as List)
               .map((e) => LyricLine.fromJson(e as Map<String, dynamic>))

@@ -73,6 +73,7 @@ func AdminRoutes(router *gin.Engine) {
 
 		// Stats
 		adminProtected.GET("/stats", controller.GetDashboardStats())
+		adminProtected.POST("/recommendations/rebuild", controller.RebuildRecommendationIndex())
 
 		// Artist requests
 		adminProtected.GET("/artist-requests", controller.ListArtistRequests())

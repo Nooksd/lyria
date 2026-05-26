@@ -25,6 +25,7 @@ import 'package:lyria/app/modules/profile/presentation/pages/profile_page.dart';
 import 'package:lyria/app/modules/settings/presentation/pages/settings_page.dart';
 import 'package:lyria/app/modules/settings/presentation/pages/edit_profile_page.dart';
 import 'package:lyria/app/modules/settings/presentation/pages/notifications_page.dart';
+import 'package:lyria/app/modules/settings/presentation/pages/preferences_page.dart';
 import 'package:lyria/app/modules/settings/presentation/pages/storage_cache_page.dart';
 import 'package:lyria/app/modules/settings/presentation/pages/about_page.dart';
 import 'package:lyria/app/modules/settings/presentation/pages/request_artist_page.dart';
@@ -220,6 +221,12 @@ class AppRouter {
             path: '/auth/ui/settings/notifications',
             pageBuilder: (context, state) => NoTransitionPage(
               child: const NotificationsPage(),
+            ),
+          ),
+          GoRoute(
+            path: '/auth/ui/settings/preferences',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: const PreferencesPage(),
             ),
           ),
           GoRoute(

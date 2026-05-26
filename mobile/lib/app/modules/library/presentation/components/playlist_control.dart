@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lyria/app/app_router.dart';
 import 'package:lyria/app/core/custom/custom_icons.dart';
 import 'package:lyria/app/core/services/connectivity/connectivity_service.dart';
+import 'package:lyria/app/core/services/http/my_http_client.dart';
 import 'package:lyria/app/modules/bottom_sheet_options/page/music_options_sheet.dart';
 import 'package:lyria/app/modules/common/music_tile.dart';
 import 'package:lyria/app/modules/download/presentation/cubits/download_cubit.dart';
@@ -12,6 +15,7 @@ import 'package:lyria/app/modules/download/presentation/cubits/download_states.d
 import 'package:lyria/app/modules/explorer/presentation/cubits/search_cubit.dart';
 import 'package:lyria/app/modules/library/domain/entities/playlist.dart';
 import 'package:lyria/app/modules/library/presentation/cubits/playlist_cubit.dart';
+import 'package:lyria/app/modules/music/domain/entities/music.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_cubit.dart';
 import 'package:lyria/app/modules/music/presentation/cubits/music_states.dart';
 
@@ -78,7 +82,62 @@ class _PlaylistControlState extends State<PlaylistControl> {
   void _showAddMusicSheet() {
     final queryController = TextEditingController();
     List<dynamic> results = [];
+    List<Music> recommendations = [];
     bool isLoading = false;
+    bool recommendationsLoading = true;
+    bool recommendationsRequested = false;
+    bool sheetOpen = true;
+
+    Future<void> addMusic(Music music, BuildContext sheetCtx) async {
+      final isOnline = getIt<ConnectivityService>().isOnline;
+      final wasFullyDownloaded = downloadCubit.getPlaylistStatus(
+            widget.playlist.musics.map((m) => m.id).toList(),
+          ) ==
+          PlaylistDownloadStatus.downloaded;
+      Navigator.pop(sheetCtx);
+      final updated = await playlistCubit.addMusicToPlaylist(
+        widget.playlist,
+        music,
+      );
+      if (updated != null) {
+        if (wasFullyDownloaded && isOnline) {
+          final alreadyDownloaded =
+              downloadCubit.state[music.id] == DownloadStatus.downloaded;
+          if (!alreadyDownloaded) {
+            downloadCubit.downloadMusic(music);
+          }
+        }
+        widget.onPlaylistUpdated(updated);
+      }
+    }
+
+    Future<void> loadRecommendations(StateSetter setSheetState) async {
+      if (recommendationsRequested) return;
+      recommendationsRequested = true;
+      try {
+        final response = await getIt<MyHttpClient>().post(
+          '/recommendation/playlist',
+          data: jsonEncode({
+            'queue': widget.playlist.musics.map((m) => m.id).toList(),
+            'exclude': widget.playlist.musics.map((m) => m.id).toList(),
+            'limit': 12,
+          }),
+        );
+        if (response['status'] == 200) {
+          final data = response['data']['musics'] as List<dynamic>? ?? [];
+          recommendations = data
+              .map((item) => Music.fromJson(
+                    Map<String, dynamic>.from(item as Map),
+                  ))
+              .toList();
+        }
+      } catch (_) {
+        recommendations = [];
+      }
+      if (sheetOpen) {
+        setSheetState(() => recommendationsLoading = false);
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -87,6 +146,7 @@ class _PlaylistControlState extends State<PlaylistControl> {
       useRootNavigator: true,
       builder: (sheetCtx) => StatefulBuilder(
         builder: (sheetCtx, setSheetState) {
+          loadRecommendations(setSheetState);
           return DraggableScrollableSheet(
             expand: false,
             initialChildSize: 0.7,
@@ -143,63 +203,92 @@ class _PlaylistControlState extends State<PlaylistControl> {
                     )
                   else
                     Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: results.length,
-                        itemBuilder: (_, i) {
-                          final search = results[i];
-                          final alreadyAdded = widget.playlist.musics
-                              .any((m) => m.id == search.id);
-                          return MusicTile(
-                            title: search.name,
-                            subtitle: search.description,
-                            image: search.imageUrl,
-                            isRound: false,
-                            onTap: alreadyAdded
-                                ? () {}
-                                : () async {
-                                    final isOnline =
-                                        getIt<ConnectivityService>().isOnline;
-                                    final wasFullyDownloaded =
-                                        downloadCubit.getPlaylistStatus(
-                                              widget.playlist.musics
-                                                  .map((m) => m.id)
-                                                  .toList(),
-                                            ) ==
-                                            PlaylistDownloadStatus.downloaded;
-                                    Navigator.pop(sheetCtx);
-                                    final updated =
-                                        await playlistCubit.addMusicToPlaylist(
-                                      widget.playlist,
-                                      search.music!,
-                                    );
-                                    if (updated != null) {
-                                      if (wasFullyDownloaded && isOnline) {
-                                        final alreadyDownloaded = downloadCubit
-                                                .state[search.music!.id] ==
-                                            DownloadStatus.downloaded;
-                                        if (!alreadyDownloaded) {
-                                          downloadCubit
-                                              .downloadMusic(search.music!);
-                                        }
-                                      }
-                                      widget.onPlaylistUpdated(updated);
-                                    }
-                                  },
-                            onLongPress: alreadyAdded || search.music == null
-                                ? () {}
-                                : () => showMusicOptionsSheet(
-                                      context,
-                                      search.music!,
+                      child: queryController.text.trim().isEmpty
+                          ? ListView.builder(
+                              controller: scrollController,
+                              itemCount: recommendationsLoading
+                                  ? 1
+                                  : recommendations.length + 1,
+                              itemBuilder: (_, i) {
+                                if (recommendationsLoading) {
+                                  return const Padding(
+                                    padding: EdgeInsets.all(20),
+                                    child: Center(
+                                      child: CircularProgressIndicator(),
                                     ),
-                            trailing: alreadyAdded
-                                ? Icon(Icons.check,
-                                    color:
-                                        Theme.of(sheetCtx).colorScheme.primary)
-                                : null,
-                          );
-                        },
-                      ),
+                                  );
+                                }
+                                if (i == 0) {
+                                  return Padding(
+                                    padding:
+                                        const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                                    child: Text(
+                                      'Recomendadas para esta playlist',
+                                      style: Theme.of(sheetCtx)
+                                          .textTheme
+                                          .titleSmall,
+                                    ),
+                                  );
+                                }
+                                final music = recommendations[i - 1];
+                                final alreadyAdded = widget.playlist.musics
+                                    .any((m) => m.id == music.id);
+                                return MusicTile(
+                                  title: music.name,
+                                  subtitle: music.artistName,
+                                  image: music.coverUrl,
+                                  isRound: false,
+                                  onTap: alreadyAdded
+                                      ? () {}
+                                      : () => addMusic(music, sheetCtx),
+                                  onLongPress: alreadyAdded
+                                      ? () {}
+                                      : () => showMusicOptionsSheet(
+                                            context,
+                                            music,
+                                          ),
+                                  trailing: alreadyAdded
+                                      ? Icon(
+                                          Icons.check,
+                                          color: Theme.of(sheetCtx)
+                                              .colorScheme
+                                              .primary,
+                                        )
+                                      : null,
+                                );
+                              },
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              itemCount: results.length,
+                              itemBuilder: (_, i) {
+                                final search = results[i];
+                                final alreadyAdded = widget.playlist.musics
+                                    .any((m) => m.id == search.id);
+                                return MusicTile(
+                                  title: search.name,
+                                  subtitle: search.description,
+                                  image: search.imageUrl,
+                                  isRound: false,
+                                  onTap: alreadyAdded
+                                      ? () {}
+                                      : () => addMusic(search.music!, sheetCtx),
+                                  onLongPress:
+                                      alreadyAdded || search.music == null
+                                          ? () {}
+                                          : () => showMusicOptionsSheet(
+                                                context,
+                                                search.music!,
+                                              ),
+                                  trailing: alreadyAdded
+                                      ? Icon(Icons.check,
+                                          color: Theme.of(sheetCtx)
+                                              .colorScheme
+                                              .primary)
+                                      : null,
+                                );
+                              },
+                            ),
                     ),
                 ],
               ),
@@ -207,7 +296,10 @@ class _PlaylistControlState extends State<PlaylistControl> {
           );
         },
       ),
-    );
+    ).whenComplete(() {
+      sheetOpen = false;
+      queryController.dispose();
+    });
   }
 
   void _toogleScheffle() async {
