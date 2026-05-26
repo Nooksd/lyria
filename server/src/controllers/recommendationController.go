@@ -23,8 +23,14 @@ import (
 )
 
 const (
-	recommendationModelVersion = "hybrid-v2"
-	recommendationNeighborCap  = 80
+	recommendationModelVersion       = "hybrid-v3"
+	recommendationNeighborCap        = 60
+	recommendationMaxFeaturesPerSong = 140
+	recommendationMaxCandidatePairs  = 1400
+	recommendationMaxTokenBucket     = 700
+	recommendationInsertBatchSize    = 250
+	recommendationMaxCollabNeighbors = 250
+	recommendationMaxPlaylistCollab  = 80
 )
 
 var recommendationVectorsCollection *mongo.Collection = database.OpenCollection(database.Client, "recommendation_vectors")
@@ -114,6 +120,26 @@ func (q *recommendationQueue) process(jobID primitive.ObjectID) {
 	defer recommendationTrainingMu.Unlock()
 
 	ctx := context.Background()
+	var job model.RecommendationJob
+	if err := recommendationJobsCollection.FindOne(ctx, bson.M{"_id": jobID}).Decode(&job); err != nil {
+		return
+	}
+	if hasActiveImportJobs(ctx) {
+		recommendationJobsCollection.UpdateOne(
+			ctx,
+			bson.M{"_id": jobID, "status": "queued"},
+			bson.M{"$set": bson.M{
+				"message":   "Aguardando importacoes terminarem para treinar sem disputar memoria.",
+				"updatedAt": time.Now(),
+			}},
+		)
+		go func() {
+			time.Sleep(2 * time.Minute)
+			q.enqueue(jobID)
+		}()
+		return
+	}
+
 	now := time.Now()
 	_, err := recommendationJobsCollection.UpdateOne(
 		ctx,
@@ -192,6 +218,13 @@ func (q *recommendationQueue) process(jobID primitive.ObjectID) {
 			"finishedAt":    finishedAt,
 		}},
 	)
+}
+
+func hasActiveImportJobs(ctx context.Context) bool {
+	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	count, err := importJobCollection.CountDocuments(checkCtx, bson.M{"status": bson.M{"$in": []string{"queued", "running"}}})
+	return err == nil && count > 0
 }
 
 func enqueueRecommendationTraining(trigger string) (*model.RecommendationJob, error) {
@@ -412,6 +445,7 @@ func trainRecommendationModel(ctx context.Context, reportProgress func(progress,
 		if len(vector) == 0 {
 			vector = buildMusicFeatureVector(music)
 		}
+		vector = pruneFeatureVector(vector, recommendationMaxFeaturesPerSong)
 		rawVectors[id] = vector
 		catalogByID[id] = music
 		seen := map[string]bool{}
@@ -461,12 +495,20 @@ func trainRecommendationModel(ctx context.Context, reportProgress func(progress,
 		return nil, err
 	}
 
-	docs := make([]interface{}, 0, len(candidates))
 	now := time.Now()
-	for _, candidate := range candidates {
+	batch := make([]interface{}, 0, recommendationInsertBatchSize)
+	flushBatch := func() error {
+		if len(batch) == 0 {
+			return nil
+		}
+		_, err := recommendationVectorsCollection.InsertMany(ctx, batch)
+		batch = batch[:0]
+		return err
+	}
+	for idx, candidate := range candidates {
 		id := objectIDHex(candidate.Music["_id"])
 		neighbors := neighborsByID[id]
-		docs = append(docs, bson.M{
+		batch = append(batch, bson.M{
 			"_id":               id,
 			"musicId":           id,
 			"artistId":          candidate.ArtistID,
@@ -480,11 +522,18 @@ func trainRecommendationModel(ctx context.Context, reportProgress func(progress,
 			"modelVersion":      recommendationModelVersion,
 			"updatedAt":         now,
 		})
-	}
-	if len(docs) > 0 {
-		if _, err := recommendationVectorsCollection.InsertMany(ctx, docs); err != nil {
-			return nil, err
+		if len(batch) >= recommendationInsertBatchSize {
+			if err := flushBatch(); err != nil {
+				return nil, err
+			}
 		}
+		if len(candidates) > 0 && (idx%1000 == 0 || idx == len(candidates)-1) {
+			progress := 88 + int(math.Round((float64(idx+1)/float64(len(candidates)))*5))
+			reportProgress(progress, 100, "Salvando vetores do modelo em lotes.")
+		}
+	}
+	if err := flushBatch(); err != nil {
+		return nil, err
 	}
 
 	reportProgress(94, 100, "Criando indices do modelo.")
@@ -558,10 +607,17 @@ func loadExistingRecommendationVectorDocs(ctx context.Context) map[string]bson.M
 
 func buildRecommendationNeighbors(candidates []recommendationCandidate, collab map[string]map[string]float64, progress func(done, total int)) map[string][]recommendationNeighbor {
 	neighborsByID := map[string][]recommendationNeighbor{}
+	tokenBuckets := buildRecommendationTokenBuckets(candidates)
+	candidateIndexByID := make(map[string]int, len(candidates))
+	for idx, candidate := range candidates {
+		candidateIndexByID[objectIDHex(candidate.Music["_id"])] = idx
+	}
+
 	for i := range candidates {
 		leftID := objectIDHex(candidates[i].Music["_id"])
-		ranked := make([]recommendationNeighbor, 0, len(candidates)-1)
-		for j := range candidates {
+		ranked := make([]recommendationNeighbor, 0, recommendationNeighborCap+1)
+		candidateIndexes := candidateIndexesForSimilarity(i, candidates, tokenBuckets, candidateIndexByID, collab[leftID])
+		for _, j := range candidateIndexes {
 			if i == j {
 				continue
 			}
@@ -578,21 +634,113 @@ func buildRecommendationNeighbors(candidates []recommendationCandidate, collab m
 			if score <= 0 {
 				continue
 			}
-			ranked = append(ranked, recommendationNeighbor{MusicID: rightID, Score: roundFloat(score, 6)})
+			ranked = appendBoundedNeighbor(ranked, recommendationNeighbor{MusicID: rightID, Score: roundFloat(score, 6)}, recommendationNeighborCap)
 		}
 
 		sort.SliceStable(ranked, func(a, b int) bool {
 			return ranked[a].Score > ranked[b].Score
 		})
-		if len(ranked) > recommendationNeighborCap {
-			ranked = ranked[:recommendationNeighborCap]
-		}
 		neighborsByID[leftID] = ranked
 		if progress != nil && (i%5 == 0 || i == len(candidates)-1) {
 			progress(i+1, len(candidates))
 		}
 	}
 	return neighborsByID
+}
+
+func buildRecommendationTokenBuckets(candidates []recommendationCandidate) map[string][]int {
+	buckets := map[string][]int{}
+	for idx, candidate := range candidates {
+		for _, key := range topFeatureKeys(candidate.Feature, 24) {
+			if len(buckets[key]) >= recommendationMaxTokenBucket {
+				continue
+			}
+			buckets[key] = append(buckets[key], idx)
+		}
+	}
+	return buckets
+}
+
+func candidateIndexesForSimilarity(index int, candidates []recommendationCandidate, buckets map[string][]int, candidateIndexByID map[string]int, related map[string]float64) []int {
+	seen := map[int]bool{index: true}
+	indexes := make([]int, 0, recommendationMaxCandidatePairs)
+
+	addIndex := func(candidateIndex int) bool {
+		if candidateIndex < 0 || candidateIndex >= len(candidates) || seen[candidateIndex] {
+			return len(indexes) >= recommendationMaxCandidatePairs
+		}
+		seen[candidateIndex] = true
+		indexes = append(indexes, candidateIndex)
+		return len(indexes) >= recommendationMaxCandidatePairs
+	}
+
+	if len(related) > 0 {
+		type pair struct {
+			id    string
+			score float64
+		}
+		pairs := make([]pair, 0, len(related))
+		for id, score := range related {
+			pairs = append(pairs, pair{id: id, score: score})
+		}
+		sort.Slice(pairs, func(i, j int) bool { return pairs[i].score > pairs[j].score })
+		for _, item := range pairs {
+			if candidateIndex, ok := candidateIndexByID[item.id]; ok && addIndex(candidateIndex) {
+				return indexes
+			}
+		}
+	}
+
+	for _, key := range topFeatureKeys(candidates[index].Feature, 28) {
+		for _, candidateIndex := range buckets[key] {
+			if addIndex(candidateIndex) {
+				return indexes
+			}
+		}
+	}
+
+	return indexes
+}
+
+func appendBoundedNeighbor(neighbors []recommendationNeighbor, next recommendationNeighbor, limit int) []recommendationNeighbor {
+	if limit <= 0 {
+		return neighbors
+	}
+	if len(neighbors) < limit {
+		return append(neighbors, next)
+	}
+	minIndex := 0
+	for i := 1; i < len(neighbors); i++ {
+		if neighbors[i].Score < neighbors[minIndex].Score {
+			minIndex = i
+		}
+	}
+	if next.Score > neighbors[minIndex].Score {
+		neighbors[minIndex] = next
+	}
+	return neighbors
+}
+
+func topFeatureKeys(features map[string]float64, limit int) []string {
+	type featureWeight struct {
+		key    string
+		weight float64
+	}
+	items := make([]featureWeight, 0, len(features))
+	for key, weight := range features {
+		items = append(items, featureWeight{key: key, weight: math.Abs(weight)})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].weight > items[j].weight
+	})
+	if limit > len(items) {
+		limit = len(items)
+	}
+	keys := make([]string, 0, limit)
+	for i := 0; i < limit; i++ {
+		keys = append(keys, items[i].key)
+	}
+	return keys
 }
 
 func loadCollaborativeSignals(ctx context.Context) map[string]map[string]float64 {
@@ -609,6 +757,12 @@ func loadCollaborativeSignals(ctx context.Context) map[string]map[string]float64
 		}
 		signals[a][b] += weight
 		signals[b][a] += weight
+		if len(signals[a]) > recommendationMaxCollabNeighbors*2 {
+			signals[a] = pruneScoreMap(signals[a], recommendationMaxCollabNeighbors)
+		}
+		if len(signals[b]) > recommendationMaxCollabNeighbors*2 {
+			signals[b] = pruneScoreMap(signals[b], recommendationMaxCollabNeighbors)
+		}
 	}
 
 	playlistCursor, err := playlistCollection.Find(ctx, bson.M{}, options.Find().SetProjection(bson.M{"musics": 1}))
@@ -621,7 +775,7 @@ func loadCollaborativeSignals(ctx context.Context) map[string]map[string]float64
 			if playlistCursor.Decode(&row) != nil {
 				continue
 			}
-			ids := uniqueObjectIDStrings(row.Musics, 150)
+			ids := uniqueObjectIDStrings(row.Musics, recommendationMaxPlaylistCollab)
 			if len(ids) < 2 {
 				continue
 			}
@@ -660,8 +814,8 @@ func loadCollaborativeSignals(ctx context.Context) map[string]map[string]float64
 				addPair(previous, id, 1/(1+float64(distance)))
 			}
 			window = append(window, id)
-			if len(window) > 12 {
-				window = window[len(window)-12:]
+			if len(window) > 8 {
+				window = window[len(window)-8:]
 			}
 		}
 	}
@@ -679,10 +833,35 @@ func loadCollaborativeSignals(ctx context.Context) map[string]map[string]float64
 			for otherID, score := range related {
 				signals[id][otherID] = math.Log1p(score) / math.Log1p(maxScore)
 			}
+			if len(signals[id]) > recommendationMaxCollabNeighbors {
+				signals[id] = pruneScoreMap(signals[id], recommendationMaxCollabNeighbors)
+			}
 		}
 	}
 
 	return signals
+}
+
+func pruneScoreMap(scores map[string]float64, limit int) map[string]float64 {
+	if limit <= 0 || len(scores) <= limit {
+		return scores
+	}
+	type pair struct {
+		id    string
+		score float64
+	}
+	items := make([]pair, 0, len(scores))
+	for id, score := range scores {
+		items = append(items, pair{id: id, score: score})
+	}
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].score > items[j].score
+	})
+	pruned := make(map[string]float64, limit)
+	for i := 0; i < limit; i++ {
+		pruned[items[i].id] = items[i].score
+	}
+	return pruned
 }
 
 func uniqueObjectIDStrings(ids []primitive.ObjectID, max int) []string {
@@ -962,7 +1141,7 @@ func loadRecommendationCatalog(ctx context.Context) ([]bson.M, error) {
 				"$album.color",
 			}},
 		}},
-		{"$project": bson.M{"album": 0, "artist": 0}},
+		{"$project": bson.M{"album": 0, "artist": 0, "waveform": 0}},
 	}
 
 	cursor, err := musicCollection.Aggregate(ctx, pipeline)
@@ -1055,12 +1234,27 @@ func addTokenFeature(vector map[string]float64, prefix, value string, weight flo
 		return
 	}
 	tokens := recommendationTokenRegex.FindAllString(value, -1)
-	for _, token := range tokens {
+	for idx, token := range tokens {
+		if idx >= 80 {
+			break
+		}
 		if len(token) < 2 {
 			continue
 		}
 		vector[prefix+":"+token] += weight
 	}
+}
+
+func pruneFeatureVector(features map[string]float64, limit int) map[string]float64 {
+	if limit <= 0 || len(features) <= limit {
+		return features
+	}
+	keys := topFeatureKeys(features, limit)
+	pruned := make(map[string]float64, len(keys))
+	for _, key := range keys {
+		pruned[key] = features[key]
+	}
+	return pruned
 }
 
 func dotProduct(a, b map[string]float64) float64 {
